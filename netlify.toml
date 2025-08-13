@@ -2,18 +2,5 @@
   publish = "public"
   functions = "netlify/functions"
 
-[[plugins]]
-  package = "@netlify/plugin-functions-install-core"
-  # ensures dependencies are available in functions
-
-# Optional: schedule a cache warm-up every hour
-[[scheduled.functions]]
-  path = "warm-cache"
-  schedule = "@hourly"
-
-[build]
-  publish = "public"
-  functions = "netlify/functions"
-
 [functions]
   included_files = ["data/suppliers-codes.xlsx"]
