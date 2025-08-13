@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Keep your fetch sources the same; improve mobile viewport behavior -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>IPEC Sales Dashboard</title>
   <style>
     /* ---- Base (dark, clean) ---- */
@@ -26,6 +27,7 @@
       font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
       color:var(--text);
       background: radial-gradient(1200px 600px at 50% -200px, #1a2233 0%, #0f1420 60%) no-repeat, var(--bg);
+      -webkit-tap-highlight-color: transparent;
     }
 
     /* ---- Page frame ---- */
@@ -34,6 +36,8 @@
       margin:0 auto;
       padding:16px;
     }
+
+    /* Sticky header with hide/show on scroll (mobile-safe) */
     header{
       position:sticky;
       top:0;
@@ -41,7 +45,15 @@
       background:linear-gradient(to bottom, rgba(15,20,32,.95), rgba(15,20,32,.6));
       backdrop-filter: blur(6px);
       border-bottom:1px solid rgba(255,255,255,.06);
+      transform: translateY(0);
+      transition: transform .22s ease;
+      will-change: transform;
+      padding-top: env(safe-area-inset-top, 0px);
     }
+    header.is-hidden{
+      transform: translateY(calc(-100% - env(safe-area-inset-top, 0px)));
+    }
+
     .header-bar{
       display:flex;
       align-items:center;
@@ -74,6 +86,7 @@
       cursor:pointer;
       font-weight:600;
       transition: .15s ease;
+      touch-action: manipulation;
     }
     .btn:hover{background:rgba(255,255,255,.06)}
 
@@ -147,7 +160,7 @@
   </style>
 </head>
 <body>
-  <header>
+  <header id="appHeader">
     <div class="wrap header-bar">
       <div class="title">IPEC Sales Dashboard</div>
       <div class="actions">
@@ -317,6 +330,51 @@
 
     $('#btnRefresh').addEventListener('click', render);
     render();
+
+    // --------- Mobile-safe header hide/show on scroll ---------
+    (function(){
+      const header = document.getElementById('appHeader');
+      if(!header) return;
+
+      let lastY = window.scrollY || 0;
+      let ticking = false;
+      const THRESHOLD = 2; // avoid iOS jitter from URL bar animations
+
+      function onScrollFrame(){
+        const y = window.scrollY || 0;
+        const dy = y - lastY;
+
+        if(Math.abs(dy) > THRESHOLD){
+          if(dy > 0){
+            // Scrolling DOWN → hide
+            header.classList.add('is-hidden');
+          }else{
+            // Scrolling UP → show immediately
+            header.classList.remove('is-hidden');
+          }
+          lastY = y;
+        }
+        ticking = false;
+      }
+
+      function onScroll(){
+        if(!ticking){
+          ticking = true;
+          requestAnimationFrame(onScrollFrame);
+        }
+      }
+
+      window.addEventListener('scroll', onScroll, { passive: true });
+
+      // iOS Safari: visual viewport changes may happen without window scroll
+      if(window.visualViewport){
+        visualViewport.addEventListener('scroll', onScroll, { passive: true });
+        visualViewport.addEventListener('resize', onScroll, { passive: true });
+      }
+
+      // Make sure no global touch handler blocks taps
+      document.addEventListener('touchstart', function(){}, { passive: true });
+    })();
   </script>
 </body>
 </html>

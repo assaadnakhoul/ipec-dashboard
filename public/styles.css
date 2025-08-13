@@ -76,3 +76,27 @@ h2{margin:0;font-size:18px;letter-spacing:.2px}
 .acc-open .acc-body{display:block}
 
 .footnote{color:var(--muted);font-size:12px;margin-top:14px}
+/* === Mobile-safe sticky topbar + instant reappear on scroll up === */
+.topbar,
+#appHeader {                     /* supports either .topbar or #appHeader */
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  transform: translateY(0);
+  transition: transform .22s ease;
+  will-change: transform;
+  /* Respect iPhone notch when the URL bar shows/hides */
+  padding-top: calc(env(safe-area-inset-top, 0px) + 20px);
+}
+
+.topbar.is-hidden,
+#appHeader.is-hidden {
+  transform: translateY(calc(-100% - env(safe-area-inset-top, 0px)));
+}
+
+/* Crisper tap behavior on mobile */
+a, button { touch-action: manipulation; }
+
+/* Ensure the entire image is a tap target for spec-sheet links */
+.spec-link { display: block; }
+
