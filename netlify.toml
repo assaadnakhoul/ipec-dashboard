@@ -1,11 +1,4 @@
 [build]
   publish   = "public"
   functions = "netlify/functions"
-
-[functions]
-  # bundle the Excel mapping file with your function
-  included_files = ["data/suppliers-codes.xlsx"]
-
-# Give the function more time (max allowed on free is 26s)
-[functions."fetch-invoices"]
-  timeout = 26
+  command   = "npm run build"
