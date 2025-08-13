@@ -8,10 +8,16 @@ import * as XLSX from 'xlsx';
 
 const SCOPES = ['https://www.googleapis.com/auth/drive.readonly'];
 
-const saEmail = process.env.GDRIVE_SA_EMAIL;
-const saKeyJson = process.env.GDRIVE_SA_KEY;  // paste full JSON into Netlify env
-const folderA = process.env.FOLDER_INV_A;     // INV-XXX-YYYY
-const folderB = process.env.FOLDER_INV_B;     // IPEC Invoice XXX-YYYY
+// --- Config from environment variables (set these in Netlify UI) ---
+const saEmail  = process.env.GDRIVE_SA_EMAIL;
+const saKeyJson = process.env.GDRIVE_SA_KEY;   // paste full JSON key as one line
+const folderA  = process.env.FOLDER_INV_A;     // INV-XXX-YYYY
+const folderB  = process.env.FOLDER_INV_B;     // IPEC Invoice XXX-YYYY
+
+// Process only the most recent N files from each folder (tune in Netlify env if you want)
+const MAX_FILES = parseInt(process.env.MAX_FILES || '40', 10);
+
+// ------------------------------------------------------------------
 
 function authClient() {
   const creds = JSON.parse(saKeyJson);
@@ -159,7 +165,6 @@ function aggregate(invoices, rules) {
     if (key) {
       const current = perClient.get(key) || { name: nameKey || '(No name)', phone: phoneKey || '(No phone)', sales: 0 };
       current.sales += inv.invoiceTotal || 0;
-      // keep best labels
       current.name  = nameKey  || current.name  || '(No name)';
       current.phone = phoneKey || current.phone || '(No phone)';
       perClient.set(key, current);
@@ -219,6 +224,14 @@ export const handler = async () => {
     const invA = filesA.filter(f => /^INV-\d{3,}-\d{4,}$/.test(f.name));
     const invB = filesB.filter(f => /^IPEC Invoice \d{3,}-\d{4,}/.test(f.name));
 
+    // newest first
+    invA.sort((a, b) => new Date(b.modifiedTime) - new Date(a.modifiedTime));
+    invB.sort((a, b) => new Date(b.modifiedTime) - new Date(a.modifiedTime));
+
+    // take only the most recent N from each folder
+    const useA = invA.slice(0, MAX_FILES);
+    const useB = invB.slice(0, MAX_FILES);
+
     // Load supplier prefix rules
     const fs = await import('node:fs/promises');
     const path = await import('node:path');
@@ -232,8 +245,8 @@ export const handler = async () => {
       const wb = XLSX.read(buf, { type: 'buffer' });
       return kind === 'A' ? parseA_Format(wb) : parseB_Format(wb);
     };
-    const parsedA = await Promise.all(invA.map(f => parseBuffers(f, 'A')));
-    const parsedB = await Promise.all(invB.map(f => parseBuffers(f, 'B')));
+    const parsedA = await Promise.all(useA.map(f => parseBuffers(f, 'A')));
+    const parsedB = await Promise.all(useB.map(f => parseBuffers(f, 'B')));
     const allInv = [...parsedA, ...parsedB];
 
     const agg = aggregate(allInv, rules);
