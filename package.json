@@ -1,15 +1,15 @@
 {
   "name": "ipec-dashboard",
-  "version": "1.0.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=18" },
   "scripts": {
-    "build": "node scripts/build-agg.js"
+    "build": "echo \"No static build step\"",
+    "postinstall": "echo \"postinstall for Netlify\""
   },
   "dependencies": {
-    "googleapis": "^131.0.0",
+    "@netlify/blobs": "^6.4.0",
     "google-auth-library": "^9.14.1",
+    "googleapis": "^144.0.0",
     "xlsx": "^0.18.5"
   }
 }

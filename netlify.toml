@@ -1,10 +1,12 @@
 [build]
+  # no static build; just publish /public
   publish = "public"
-  functions = "netlify/functions"
 
 [functions]
-  # ship the two mapping Excels with the functions bundle
-  included_files = [
-    "data/suppliers-codes.xlsx",
-    "data/categories-descriptions.xlsx"
-  ]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+  included_files = ["data/**"]    # ship suppliers-codes.xlsx & categories-descriptions.xlsx
+
+# (Optional but helpful — auto-install function deps)
+[[plugins]]
+  package = "@netlify/plugin-functions-install-core"
