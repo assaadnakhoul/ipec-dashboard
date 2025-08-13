@@ -1,15 +1,25 @@
 // netlify/functions/reset-cache.js
-import { getStore } from '@netlify/blobs';
+import { store, deleteByPrefix, STATE_KEY, AGG_KEY, CHUNK_PREFIX } from './store.js';
+
 export const handler = async () => {
   try {
-    const store = getStore('ipec-dash');
-    await Promise.all([
-      store.delete('progress.json'),
-      store.delete('agg-work.json'),
-      store.delete('agg.json'),
+    const s = store();
+    await Promise.allSettled([
+      s.delete(STATE_KEY),
+      s.delete(AGG_KEY),
     ]);
-    return { statusCode: 200, body: JSON.stringify({ ok:true, cleared:true }) };
+    await deleteByPrefix(CHUNK_PREFIX);
+
+    return {
+      statusCode: 200,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ok: true, cleared: true }),
+    };
   } catch (e) {
-    return { statusCode: 500, body: JSON.stringify({ error: e.message }) };
+    return {
+      statusCode: 500,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ ok: false, error: e.message }),
+    };
   }
 };

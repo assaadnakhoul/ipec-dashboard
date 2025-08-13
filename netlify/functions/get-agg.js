@@ -1,25 +1,24 @@
 // netlify/functions/get-agg.js
-import { store } from './_store.js';
-
-const AGG_KEY = 'agg.json';
-const STATE_KEY = 'state.json'; // or 'build/state.json'
+import { store, readJSON, AGG_KEY, STATE_KEY } from './store.js';
 
 export const handler = async () => {
   try {
-    const s = store();
-    const state = await s.get(STATE_KEY, { type: 'json' });
-    const agg   = await s.get(AGG_KEY,   { type: 'json' });
+    // Ensure Blobs are reachable (early fail helps)
+    await store();
+
+    const state = await readJSON(STATE_KEY, null);
+    const agg   = await readJSON(AGG_KEY,   null);
 
     if (!state || !state.done || !agg) {
-      return resp({ ready: false });
+      return json({ ready: false });
     }
-    return resp({ ready: true, data: agg });
+    return json({ ready: true, data: agg });
   } catch (e) {
-    return resp({ ready: false, error: e.message }, 200);
+    return json({ ready: false, error: e.message });
   }
 };
 
-function resp(body, statusCode = 200) {
+function json(body, statusCode = 200) {
   return {
     statusCode,
     headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },

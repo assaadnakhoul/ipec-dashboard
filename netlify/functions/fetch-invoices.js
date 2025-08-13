@@ -1,28 +1,15 @@
 // netlify/functions/fetch-invoices.js
-import { getStore } from '@netlify/blobs';
-
-const STORE_NAME = 'ipec-dashboard-cache';
-const AGG_KEY = 'agg.json';
-
-function store() {
-  return getStore(STORE_NAME, {
-    siteID: process.env.NETLIFY_BLOBS_SITE_ID,
-    token: process.env.NETLIFY_BLOBS_TOKEN,
-  });
-}
+// Returns the final aggregated payload directly (legacy endpoint used by UI)
+import { readJSON, AGG_KEY } from './store.js';
 
 export const handler = async () => {
   try {
-    const s = store();
-    const agg = await s.get(AGG_KEY, { type: 'json' });
+    const agg = await readJSON(AGG_KEY, null);
     if (!agg) {
       return {
         statusCode: 404,
         headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
-        body: JSON.stringify({
-          ok: false,
-          message: 'No cache yet. Visit /.netlify/functions/warm-cache repeatedly until done: true',
-        }),
+        body: JSON.stringify({ ok: false, message: 'Aggregation not ready yet.' }),
       };
     }
     return {
