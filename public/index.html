@@ -2,394 +2,93 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1, maximum-scale=1"
-  />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>IPEC Sales Dashboard</title>
+
+  <!-- Your styles -->
   <link rel="stylesheet" href="styles.css" />
 
-  <!-- Fallback fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet"/>
+  <!-- Fonts (optional) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
 </head>
 <body>
   <header class="page-header">
     <div class="title-row">
       <h1>IPEC Sales Dashboard</h1>
-
       <div class="actions">
         <div id="totalSales" class="badge">Total Sales: $0</div>
         <button id="refreshBtn" class="btn">Refresh</button>
       </div>
     </div>
-
-    <!-- Category chips -->
-    <div id="categoryBar" class="chips">
-      <!-- Dynamically filled with: All, Category A, Category B, ... -->
-    </div>
+    <div id="status" class="muted" style="margin-top:.25rem;"></div>
   </header>
 
   <main class="grid">
+
     <!-- Top Suppliers -->
     <section class="card">
       <div class="card-head">
         <h2>Top Suppliers (Sales)</h2>
-        <small id="suppliersCount" class="muted"></small>
+        <small id="suppliersSubtle" class="muted"></small>
       </div>
-      <div id="suppliersList" class="list"></div>
-      <button data-target="suppliersList" class="show-more" hidden>Show more</button>
+
+      <!-- Chart + logos -->
+      <div class="split">
+        <div class="chart-wrap">
+          <canvas id="suppliersChart" height="260"></canvas>
+        </div>
+        <div class="logos" id="supplierLogos"></div>
+      </div>
     </section>
 
-    <!-- Top Selling Items -->
+    <!-- Top Items -->
     <section class="card">
       <div class="card-head">
         <h2>Top Selling Items</h2>
-        <div class="inline">
-          <span class="muted">Sort by:</span>
-          <div class="seg">
-            <button id="sortUnits" class="seg-btn seg-active">Units</button>
-            <button id="sortValue" class="seg-btn">Value</button>
-          </div>
-        </div>
+        <small id="itemsSubtle" class="muted"></small>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="itemsChart" height="260"></canvas>
       </div>
       <div id="itemsList" class="list"></div>
-      <button data-target="itemsList" class="show-more" hidden>Show more</button>
     </section>
 
     <!-- Top Clients -->
     <section class="card">
       <div class="card-head">
         <h2>Top Clients</h2>
-        <small id="clientsCount" class="muted"></small>
       </div>
       <div id="clientsList" class="list"></div>
-      <button data-target="clientsList" class="show-more" hidden>Show more</button>
     </section>
 
-    <!-- Top 10 Unit Sales per Category -->
+    <!-- Top 10 per Category -->
     <section class="card">
       <div class="card-head">
         <h2>Top 10 Unit Sales per Category</h2>
-        <small id="catRowsCount" class="muted"></small>
       </div>
-      <div id="byCategoryList" class="list"></div>
-      <button data-target="byCategoryList" class="show-more" hidden>Show more</button>
+      <div id="catsWrap" class="accordion"></div>
     </section>
+
   </main>
 
+  <!-- Template used by app.js to show supplier logos (optional) -->
+  <template id="logoTpl">
+    <figure class="logo">
+      <img class="logo-img" alt="Supplier logo" />
+      <figcaption></figcaption>
+    </figure>
+  </template>
+
   <footer class="footnote">
-    Data comes from <code>/public/agg.json</code> or the server cache (Netlify Blobs).
+    Data is prepared by <code>/.netlify/functions/warm-cache</code> and read via <code>/.netlify/functions/get-agg</code>.
   </footer>
 
-  <script>
-    // -----------------------------
-    // Small helpers
-    // -----------------------------
-    const $ = (s, root = document) => root.querySelector(s);
-    const $$ = (s, root = document) => [...root.querySelectorAll(s)];
-    const fmtUSD = (n) => "$" + (Number(n || 0)).toLocaleString();
-    const fmtUnits = (n) => (Number(n || 0)).toLocaleString() + " pcs";
+  <!-- Chart.js for the small bar charts used by app.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
-    function makeProgressRow({ label, right, value, maxValue }) {
-      const pct = maxValue > 0 ? Math.max(2, (value / maxValue) * 100) : 0;
-      return `
-        <div class="row">
-          <div class="row-top">
-            <span class="label" title="${label}">${label}</span>
-            <span class="right">${right}</span>
-          </div>
-          <div class="bar"><div class="bar-fill" style="width:${pct}%"></div></div>
-        </div>
-      `;
-    }
-
-    function attachShowMore(targetId, totalCount) {
-      const btn = document.querySelector(\`.show-more[data-target="\${targetId}"]\`);
-      if (!btn) return;
-      if (totalCount > 5) {
-        btn.hidden = false;
-        btn.textContent = "Show more";
-        btn.dataset.state = "collapsed";
-        btn.onclick = () => {
-          const list = document.getElementById(targetId);
-          const hidden = list.querySelectorAll(".row.hidden");
-          if (btn.dataset.state === "collapsed") {
-            hidden.forEach((el, i) => { if (i < 5) el.classList.remove("hidden"); });
-            if (list.querySelectorAll(".row.hidden").length === 0) {
-              btn.textContent = "Show less";
-              btn.dataset.state = "expanded";
-            }
-          } else {
-            // Collapse back to 5
-            [...list.querySelectorAll(".row")].slice(5).forEach(el => el.classList.add("hidden"));
-            btn.textContent = "Show more";
-            btn.dataset.state = "collapsed";
-          }
-        };
-      } else {
-        btn.hidden = true;
-      }
-    }
-
-    // -----------------------------
-    // State
-    // -----------------------------
-    let RAW = null;            // whole payload from agg.json / function
-    let sortMode = "units";    // 'units' | 'value'
-    let activeCategory = "All";
-
-    // -----------------------------
-    // Data loading (agg.json first, fallback to function)
-    // -----------------------------
-    async function loadData() {
-      // Try public/agg.json first
-      try {
-        const a = await fetch("/agg.json", { cache: "no-store" });
-        if (a.ok) {
-          return await a.json();
-        }
-      } catch (_) {}
-
-      // Try server cache (warm-cache)
-      try {
-        const b = await fetch("/.netlify/functions/warm-cache", { cache: "no-store" });
-        if (b.ok) {
-          return await b.json();
-        }
-      } catch (_) {}
-
-      throw new Error("Could not load data. Is agg.json or warm-cache available?");
-    }
-
-    // -----------------------------
-    // Render functions
-    // -----------------------------
-
-    function renderCategoryChips() {
-      const bar = $("#categoryBar");
-      bar.innerHTML = "";
-
-      // Categories from topByCategory keys
-      const keys = Object.keys(RAW.topByCategory || {});
-      keys.sort((a, b) => a.localeCompare(b));
-      const cats = ["All", ...keys];
-
-      cats.forEach(cat => {
-        const chip = document.createElement("button");
-        chip.className = "chip" + (cat === activeCategory ? " chip-active" : "");
-        chip.textContent = cat;
-        chip.onclick = () => {
-          activeCategory = cat;
-          renderAll();
-        };
-        bar.appendChild(chip);
-      });
-    }
-
-    function renderSuppliers() {
-      const list = $("#suppliersList");
-      list.innerHTML = "";
-
-      const rows = (RAW.topSuppliers || []).slice(0, 10); // we will hide after 5 with "show more"
-      const maxVal = rows.length ? Math.max(...rows.map(r => r.sales || 0)) : 0;
-
-      $("#suppliersCount").textContent = `${rows.length} suppliers`;
-
-      rows.forEach((r, i) => {
-        const html = makeProgressRow({
-          label: r.supplier || "Unknown",
-          right: fmtUSD(r.sales || 0),
-          value: r.sales || 0,
-          maxValue: maxVal
-        });
-
-        const wrap = document.createElement("div");
-        wrap.innerHTML = html;
-        const rowEl = wrap.firstElementChild;
-        if (i >= 5) rowEl.classList.add("hidden");
-        list.appendChild(rowEl);
-      });
-
-      attachShowMore("suppliersList", rows.length);
-    }
-
-    function getItemsFilteredSorted() {
-      // Build items from overall list with labels and metrics we need.
-      // RAW.topItemsOverall: array of { code, qty, sales }
-      const raw = RAW.topItemsOverall || [];
-      const byCategory = RAW.topByCategory || {};
-
-      // If category filter is not "All", keep only items present in that category map
-      let filtered = raw;
-      if (activeCategory !== "All" && byCategory[activeCategory]) {
-        const setCodes = new Set((byCategory[activeCategory] || []).map(x => x.code));
-        filtered = raw.filter(it => setCodes.has(it.code));
-      }
-
-      // Sort
-      if (sortMode === "units") {
-        filtered = filtered.sort((a, b) => (b.qty || 0) - (a.qty || 0));
-      } else {
-        filtered = filtered.sort((a, b) => (b.sales || 0) - (a.sales || 0));
-      }
-      return filtered.slice(0, 10); // show up to 10
-    }
-
-    function renderItems() {
-      const list = $("#itemsList");
-      list.innerHTML = "";
-
-      const rows = getItemsFilteredSorted();
-      const maxVal = rows.length
-        ? Math.max(...rows.map(r => sortMode === "units" ? (r.qty || 0) : (r.sales || 0)))
-        : 0;
-
-      rows.forEach((r, i) => {
-        const metric = sortMode === "units" ? (r.qty || 0) : (r.sales || 0);
-        const right = sortMode === "units" ? fmtUnits(metric) : fmtUSD(metric);
-
-        const html = makeProgressRow({
-          label: r.code || "—",
-          right,
-          value: metric,
-          maxValue: maxVal
-        });
-
-        const wrap = document.createElement("div");
-        wrap.innerHTML = html;
-        const rowEl = wrap.firstElementChild;
-        if (i >= 5) rowEl.classList.add("hidden");
-        list.appendChild(rowEl);
-      });
-
-      attachShowMore("itemsList", rows.length);
-    }
-
-    function renderClients() {
-      const list = $("#clientsList");
-      list.innerHTML = "";
-      const rows = (RAW.topClients || []).slice(0, 10);
-      const maxVal = rows.length ? Math.max(...rows.map(r => r.sales || 0)) : 0;
-
-      $("#clientsCount").textContent = `${rows.length} clients`;
-
-      rows.forEach((r, i) => {
-        const label = r.phone ? `${r.name || "Unknown"} • ${r.phone}` : (r.name || "Unknown");
-        const html = makeProgressRow({
-          label,
-          right: fmtUSD(r.sales || 0),
-          value: r.sales || 0,
-          maxValue: maxVal
-        });
-        const wrap = document.createElement("div");
-        wrap.innerHTML = html;
-        const rowEl = wrap.firstElementChild;
-        if (i >= 5) rowEl.classList.add("hidden");
-        list.appendChild(rowEl);
-      });
-
-      attachShowMore("clientsList", rows.length);
-    }
-
-    function renderTopByCategory() {
-      const container = $("#byCategoryList");
-      container.innerHTML = "";
-
-      // We'll flatten the top 10 rows across categories (already pre-aggregated)
-      // RAW.topByCategory = { Category: [{code, qty}, ...], ...}
-      const entries = Object.entries(RAW.topByCategory || {});
-      $("#catRowsCount").textContent = `${entries.length} category rows`;
-
-      // Build a simplified array: label = `${cat} • ${code}`, value = qty
-      let rows = [];
-      entries.forEach(([cat, arr]) => {
-        (arr || []).slice(0, 10).forEach(item => {
-          rows.push({
-            label: `${cat} • ${item.code}`,
-            qty: Number(item.qty || 0)
-          });
-        });
-      });
-
-      // Sort by qty desc then take 10 to avoid a massive list
-      rows = rows.sort((a, b) => b.qty - a.qty).slice(0, 10);
-
-      const maxVal = rows.length ? Math.max(...rows.map(r => r.qty)) : 0;
-      rows.forEach((r, i) => {
-        const html = makeProgressRow({
-          label: r.label,
-          right: fmtUnits(r.qty),
-          value: r.qty,
-          maxValue: maxVal
-        });
-        const wrap = document.createElement("div");
-        wrap.innerHTML = html;
-        const rowEl = wrap.firstElementChild;
-        if (i >= 5) rowEl.classList.add("hidden");
-        container.appendChild(rowEl);
-      });
-
-      attachShowMore("byCategoryList", rows.length);
-    }
-
-    function renderAll() {
-      // Total sales
-      $("#totalSales").textContent = `Total Sales: ${fmtUSD(RAW.totalSales || 0)}`;
-      // Chips
-      renderCategoryChips();
-      // Panels
-      renderSuppliers();
-      renderItems();
-      renderClients();
-      renderTopByCategory();
-    }
-
-    // -----------------------------
-    // Wire up UI events
-    // -----------------------------
-    window.addEventListener("DOMContentLoaded", async () => {
-      // Sort toggles
-      $("#sortUnits").onclick = () => {
-        sortMode = "units";
-        $("#sortUnits").classList.add("seg-active");
-        $("#sortValue").classList.remove("seg-active");
-        renderItems();
-      };
-      $("#sortValue").onclick = () => {
-        sortMode = "value";
-        $("#sortValue").classList.add("seg-active");
-        $("#sortUnits").classList.remove("seg-active");
-        renderItems();
-      };
-
-      $("#refreshBtn").onclick = async () => {
-        $("#refreshBtn").disabled = true;
-        try {
-          // Force warm
-          await fetch("/.netlify/functions/warm-cache?refresh=1", { cache: "no-store" });
-          RAW = await loadData();
-          renderAll();
-        } catch (err) {
-          alert("Refresh failed: " + err.message);
-        } finally {
-          $("#refreshBtn").disabled = false;
-        }
-      };
-
-      // Initial load
-      try {
-        $("#refreshBtn").textContent = "Loading...";
-        RAW = await loadData();
-        renderAll();
-      } catch (err) {
-        console.error(err);
-        alert("Could not load data. Did the build create /public/agg.json or does warm-cache work?");
-      } finally {
-        $("#refreshBtn").textContent = "Refresh";
-      }
-    });
-  </script>
+  <!-- Your dashboard logic (the polling + rendering code I gave you) -->
+  <script src="app.js"></script>
 </body>
 </html>
