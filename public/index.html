@@ -1,43 +1,82 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>IPEC Sales Dashboard</title>
-  <link rel="stylesheet" href="./styles.css"/>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 </head>
 <body>
-  <header class="wrap">
-    <h1>IPEC Sales Dashboard</h1>
-    <div class="meta">
-      <span id="totalSales" class="kpi"></span>
-      <button id="refreshBtn">Refresh</button>
+  <header class="topbar">
+    <div class="brand">
+      <img src="/images/ipec-logo.svg" alt="" class="logo" onerror="this.style.display='none'">
+      <h1>IPEC Sales Dashboard</h1>
+    </div>
+
+    <div class="actions">
+      <div id="totalSales" class="pill">Total Sales: $0</div>
+      <button id="refreshBtn" class="btn">Refresh</button>
     </div>
   </header>
 
-  <main class="wrap grid">
-    <section class="card">
-      <h2>Top Suppliers (Sales)</h2>
-      <canvas id="suppliersChart"></canvas>
-      <div id="suppliersLogos" class="logo-row"></div>
+  <main class="container">
+    <section class="grid">
+      <!-- Top suppliers -->
+      <article class="card">
+        <div class="card-header">
+          <h2>Top Suppliers (Sales)</h2>
+          <div class="subtle" id="suppliersSubtle"></div>
+        </div>
+        <canvas id="suppliersChart" height="180"></canvas>
+        <div id="supplierLogos" class="logo-strip"></div>
+      </article>
+
+      <!-- Top items overall -->
+      <article class="card">
+        <div class="card-header">
+          <h2>Top Selling Items (Overall)</h2>
+          <div class="subtle" id="itemsSubtle"></div>
+        </div>
+        <canvas id="itemsChart" height="180"></canvas>
+        <div id="itemsList" class="list"></div>
+      </article>
     </section>
 
-    <section class="card">
-      <h2>Top Selling Items (Overall)</h2>
-      <div id="itemsGrid" class="items-grid"></div>
+    <section class="grid">
+      <!-- Top clients -->
+      <article class="card">
+        <div class="card-header">
+          <h2>Top Clients</h2>
+          <div class="subtle" id="clientsSubtle">Based on phone if present</div>
+        </div>
+        <div id="clientsList" class="list"></div>
+      </article>
+
+      <!-- Top 10 unit sales per category -->
+      <article class="card">
+        <div class="card-header">
+          <h2>Top 10 Unit Sales per Category</h2>
+        </div>
+        <div id="catsWrap" class="accordion"></div>
+      </article>
     </section>
 
-    <section class="card">
-      <h2>Top 10 Unit Sales per Category</h2>
-      <div id="categories"></div>
-    </section>
+    <p class="footnote">
+      Data is generated at build-time for fast loads. Item images match <code>images/{itemCode}.png</code>.
+      Supplier logos match <code>images/logos/{supplier}.png</code>.
+    </p>
   </main>
 
-  <footer class="wrap">
-    <small>Data cached for quick loads. Images match item codes; logos match supplier names.</small>
-  </footer>
+  <template id="logoTpl">
+    <figure class="logo-figure">
+      <img class="logo-img" alt="">
+      <figcaption></figcaption>
+    </figure>
+  </template>
 
-  <script src="./app.js"></script>
+  <script src="/app.js" defer></script>
 </body>
 </html>

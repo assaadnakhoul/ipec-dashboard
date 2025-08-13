@@ -1,138 +1,139 @@
-const api = '/.netlify/functions/fetch-invoices';
+// UI helper
+const $ = sel => document.querySelector(sel);
+const fmt = n => Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 });
 
-const currency = (n) => n.toLocaleString(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
-const tryImg = (basePath, name) => {
-  const bases = [`${basePath}/${name}.jpg`, `${basePath}/${name}.png`, `${basePath}/${name}.webp`];
-  return new Promise((resolve) => {
-    (function test(i){
-      if (i>=bases.length) return resolve(null);
-      const img = new Image();
-      img.onload = () => resolve(bases[i]);
-      img.onerror = () => test(i+1);
-      img.src = bases[i];
-    })(0);
+let charts = {};
+
+// build a bar chart
+function makeBar(id, labels, values, label) {
+  const ctx = $(id).getContext('2d');
+  charts[id] && charts[id].destroy();
+  charts[id] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label,
+        data: values,
+        borderWidth: 0,
+        borderRadius: 8
+      }]
+    },
+    options: {
+      maintainAspectRatio: false,
+      scales: {
+        x: { ticks: { color: '#cfd6f8' }, grid: { display:false } },
+        y: { ticks: { color: '#8b93a7' }, grid: { color:'rgba(255,255,255,.05)' } }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: { label: c => `${label}: $${fmt(c.parsed.y)}` }
+        }
+      }
+    }
   });
-};
+}
 
-async function loadData(force=false) {
-  const url = force ? `${api}?t=${Date.now()}` : api;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('Failed loading data');
+async function loadData() {
+  const res = await fetch('/agg.json', { cache: 'no-store' });
+  if (!res.ok) throw new Error('agg.json not found');
   return res.json();
 }
 
-function renderTotal(total) {
-  document.getElementById('totalSales').textContent = `Total Sales: ${currency(total)}`;
-}
-
-function renderSuppliersChart(rows) {
-  const ctx = document.getElementById('suppliersChart');
-  const labels = rows.slice(0, 12).map(r => r.supplier);
-  const data = rows.slice(0, 12).map(r => Math.round(r.sales));
-
-  new Chart(ctx, {
-    type: 'bar',
-    data: { labels, datasets: [{ label: 'Sales', data }] },
-    options: {
-      responsive: true,
-      plugins: { legend: { display:false } },
-      scales: { x: { ticks:{ color:'#cfe0ff' } }, y: { ticks:{ color:'#cfe0ff' } } }
-    }
-  });
-
-  const logosDiv = document.getElementById('suppliersLogos');
-  logosDiv.innerHTML = '';
-  labels.forEach(async (name) => {
-    const src = await tryImg('./logos', name);
-    if (src) {
-      const img = document.createElement('img');
-      img.alt = name; img.src = src;
-      logosDiv.appendChild(img);
-    }
+function renderSupplierLogos(suppliers) {
+  const wrap = $('#supplierLogos');
+  wrap.innerHTML = '';
+  const tpl = $('#logoTpl');
+  suppliers.slice(0, 8).forEach(s => {
+    const node = tpl.content.firstElementChild.cloneNode(true);
+    const img = node.querySelector('.logo-img');
+    const cap = node.querySelector('figcaption');
+    cap.textContent = s.supplier;
+    const nameForFile = s.supplier.replace(/[^\w\-]+/g, '');
+    img.src = `/images/logos/${nameForFile}.png`;
+    img.alt = s.supplier;
+    img.onerror = () => node.style.display = 'none';
+    wrap.appendChild(node);
   });
 }
 
-async function renderTopItems(items) {
-  const grid = document.getElementById('itemsGrid');
-  grid.innerHTML = '';
-  const top = items.slice(0, 24);
-  for (const it of top) {
-    const wrap = document.createElement('div');
-    wrap.className = 'item';
-    const src = await tryImg('./images', it.code);
-    const img = document.createElement('img');
-    img.src = src || '';
-    img.alt = it.code;
-    wrap.appendChild(img);
-
-    const name = document.createElement('div');
-    name.className = 'name';
-    name.textContent = it.code;
-    wrap.appendChild(name);
-
-    const fig = document.createElement('div');
-    fig.className = 'fig';
-    fig.textContent = `${it.qty} units • ${currency(it.sales)}`;
-    wrap.appendChild(fig);
-
-    grid.appendChild(wrap);
-  }
+function renderTopClients(list) {
+  const box = $('#clientsList');
+  box.innerHTML = '';
+  list.forEach(c => {
+    const div = document.createElement('div');
+    div.className = 'row';
+    const name = c.name || '(No name)';
+    const phone = c.phone || '(No phone)';
+    div.innerHTML = `<span>${name} <span class="subtle">(${phone})</span></span><b>$ ${fmt(c.sales)}</b>`;
+    box.appendChild(div);
+  });
 }
 
-async function renderCategories(topByCategory) {
-  const host = document.getElementById('categories');
-  host.innerHTML = '';
-
-  for (const [cat, arr] of Object.entries(topByCategory)) {
-    const section = document.createElement('div');
-    section.className = 'category';
-    const h = document.createElement('h3');
-    h.textContent = cat;
-    section.appendChild(h);
-
+function renderTopItemsList(items) {
+  const box = $('#itemsList');
+  box.innerHTML = '';
+  items.slice(0, 10).forEach(i => {
     const row = document.createElement('div');
-    row.className = 'cat-row';
-    section.appendChild(row);
-
-    for (const it of arr) {
-      const card = document.createElement('div');
-      card.className = 'item';
-      const src = await tryImg('./images', it.code);
-      const img = document.createElement('img');
-      img.src = src || '';
-      img.alt = it.code;
-      card.appendChild(img);
-
-      const nm = document.createElement('div');
-      nm.className = 'name';
-      nm.textContent = it.code;
-      card.appendChild(nm);
-
-      const q = document.createElement('div');
-      q.className = 'fig';
-      q.textContent = `${it.qty} units`;
-      card.appendChild(q);
-
-      row.appendChild(card);
-    }
-
-    host.appendChild(section);
-  }
+    row.className = 'row';
+    row.innerHTML = `<span>${i.code}</span><span class="subtle">qty ${fmt(i.qty)}</span><b>$ ${fmt(i.sales)}</b>`;
+    box.appendChild(row);
+  });
 }
 
-async function boot(force=false){
-  document.getElementById('itemsGrid').innerHTML = 'Loading…';
+function renderCategories(topByCategory) {
+  const wrap = $('#catsWrap');
+  wrap.innerHTML = '';
+  Object.entries(topByCategory).forEach(([cat, rows]) => {
+    const item = document.createElement('div');
+    item.className = 'acc-item';
+    item.innerHTML = `
+      <div class="acc-head"><span>${cat}</span><span class="subtle">Top 10</span></div>
+      <div class="acc-body"><ul>${rows.map(r => `<li>${r.code} — qty ${fmt(r.qty)}</li>`).join('')}</ul></div>
+    `;
+    item.querySelector('.acc-head').addEventListener('click', () => {
+      item.classList.toggle('acc-open');
+    });
+    wrap.appendChild(item);
+  });
+}
+
+async function render() {
   try {
-    const data = await loadData(force);
-    renderTotal(data.totalSales || 0);
-    renderSuppliersChart(data.topSuppliers || []);
-    await renderTopItems(data.topItemsOverall || []);
-    await renderCategories(data.topByCategory || {});
+    const data = await loadData();
+
+    // header stats
+    $('#totalSales').textContent = `Total Sales: $ ${fmt(data.totalSales)}`;
+
+    // suppliers
+    const sup = data.topSuppliers || [];
+    $('#suppliersSubtle').textContent = `${sup.length} suppliers`;
+    makeBar('#suppliersChart',
+      sup.slice(0,8).map(s => s.supplier),
+      sup.slice(0,8).map(s => s.sales),
+      'Sales');
+    renderSupplierLogos(sup);
+
+    // items
+    const items = data.topItemsOverall || [];
+    $('#itemsSubtle').textContent = `${items.length} items ranked`;
+    makeBar('#itemsChart',
+      items.slice(0,8).map(i => i.code),
+      items.slice(0,8).map(i => i.sales),
+      'Sales');
+    renderTopItemsList(items);
+
+    // clients
+    renderTopClients(data.topClients || []);
+
+    // categories
+    renderCategories(data.topByCategory || {});
   } catch (e) {
-    document.getElementById('itemsGrid').innerHTML = 'Error loading data.';
     console.error(e);
+    alert('Could not load /agg.json. Did the build create it?');
   }
 }
 
-document.getElementById('refreshBtn').addEventListener('click', () => boot(true));
-boot();
+document.addEventListener('DOMContentLoaded', render);
+$('#refreshBtn')?.addEventListener('click', render);
