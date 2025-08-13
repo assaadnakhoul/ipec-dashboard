@@ -1,5 +1,6 @@
 // netlify/functions/reset-cache.js
-import { store, deleteByPrefix, STATE_KEY, AGG_KEY, CHUNK_PREFIX } from './store.js';
+// netlify/functions/get-agg.js
+import { store, readJSON, AGG_KEY, STATE_KEY } from './_lib/store.js';
 
 export const handler = async () => {
   try {

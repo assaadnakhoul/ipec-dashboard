@@ -1,6 +1,7 @@
 // netlify/functions/fetch-invoices.js
 // Returns the final aggregated payload directly (legacy endpoint used by UI)
-import { readJSON, AGG_KEY } from './store.js';
+// netlify/functions/get-agg.js
+import { store, readJSON, AGG_KEY, STATE_KEY } from './_lib/store.js';
 
 export const handler = async () => {
   try {
