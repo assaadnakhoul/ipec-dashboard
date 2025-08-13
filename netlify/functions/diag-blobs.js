@@ -1,27 +1,32 @@
-import { store } from './_lib/store.js';
+// netlify/functions/diag-blobs.js
+import { writeJSON, readJSON } from './_lib/store.js';
 
 export const handler = async () => {
-  const envSeen = {
-    NETLIFY_BLOBS_SITE_ID: !!process.env.NETLIFY_BLOBS_SITE_ID,
-    NETLIFY_BLOBS_TOKEN:   !!process.env.NETLIFY_BLOBS_TOKEN,
-    NETLIFY_BLOBS_STORE:   process.env.NETLIFY_BLOBS_STORE || '(not set)',
-    blobsPkg: (() => {
-      try { return require('@netlify/blobs/package.json').version; }
-      catch { return '(unknown)'; }
-    })()
-  };
-
   try {
-    const s = store();
-    const key = 'diag/test.json';
-    await s.setJSON(key, { ok: true, t: Date.now() });
-    const back = await s.get(key, { type: 'json' });
-    return respond(200, { ok: true, envSeen, writeReadWorked: !!back?.ok });
+    // write test
+    await writeJSON('diag.json', { ok: true, t: Date.now() });
+    // read test
+    const back = await readJSON('diag.json', null);
+
+    return respond(200, {
+      ok: !!back?.ok,
+      using: 'google-drive-cache',
+      seen: {
+        GDRIVE_SA_EMAIL: !!process.env.GDRIVE_SA_EMAIL,
+        GDRIVE_SA_KEY: !!process.env.GDRIVE_SA_KEY,
+        GDRIVE_CACHE_FOLDER_ID: !!process.env.GDRIVE_CACHE_FOLDER_ID
+      },
+      back
+    });
   } catch (e) {
-    return respond(500, { ok: false, envSeen, error: e.message });
+    return respond(500, { ok: false, error: e.message });
   }
 };
 
-function respond(code, body) {
-  return { statusCode: code, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body, null, 2) };
+function respond(statusCode, body) {
+  return {
+    statusCode,
+    headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
+    body: JSON.stringify(body, null, 2)
+  };
 }
