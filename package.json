@@ -1,11 +1,7 @@
 {
   "name": "ipec-dashboard",
+  "version": "1.0.0",
   "private": true,
-  "scripts": {
-    "dev": "npx serve public",
-    "build": "echo 'Static build'",
-    "netlify:serve": "netlify dev"
-  },
   "dependencies": {
     "@netlify/blobs": "^6.6.0",
     "googleapis": "^131.0.0",
