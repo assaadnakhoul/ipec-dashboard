@@ -1,17 +1,19 @@
-// get-agg.js — returns dashboard data if ready, otherwise {ready:false}
-import { getStore } from '@netlify/blobs';
+// netlify/functions/get-agg.js
+import { store } from './_store.js';
+
+const AGG_KEY = 'agg.json';
+const STATE_KEY = 'state.json'; // or 'build/state.json'
 
 export const handler = async () => {
   try {
-    const store = getStore('ipec-cache');
-    const state = await store.get('state.json', { type: 'json' });
-    if (!state || !state.done) {
-      // let the UI know the cache is not complete yet
+    const s = store();
+    const state = await s.get(STATE_KEY, { type: 'json' });
+    const agg   = await s.get(AGG_KEY,   { type: 'json' });
+
+    if (!state || !state.done || !agg) {
       return resp({ ready: false });
     }
-    // strip heavy internal fields before sending to client
-    const { data } = state;
-    return resp({ ready: true, data });
+    return resp({ ready: true, data: agg });
   } catch (e) {
     return resp({ ready: false, error: e.message }, 200);
   }
