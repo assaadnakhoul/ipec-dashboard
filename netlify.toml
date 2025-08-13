@@ -10,3 +10,10 @@
 [[scheduled.functions]]
   path = "warm-cache"
   schedule = "@hourly"
+
+[build]
+  publish = "public"
+  functions = "netlify/functions"
+
+[functions]
+  included_files = ["data/suppliers-codes.xlsx"]
