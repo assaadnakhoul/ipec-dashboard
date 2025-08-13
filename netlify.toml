@@ -1,6 +1,8 @@
 [build]
-  publish = "public"
+  command  = "node scripts/build-agg.js"
+  publish  = "public"
   functions = "netlify/functions"
 
 [functions]
+  # bundle the Excel file into the build context (just in case)
   included_files = ["data/suppliers-codes.xlsx"]

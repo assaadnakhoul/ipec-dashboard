@@ -1,102 +1,75 @@
 :root{
-  --bg: #0f1320;
-  --card: #171c2c;
-  --muted: #8b93a7;
-  --text: #e8ecff;
-  --brand: #6aa5ff;
-  --brand-2:#7df0ff;
-  --ring: rgba(122,180,255,.35);
-  --shadow: 0 10px 30px rgba(0,0,0,.35);
-  --radius: 18px;
+  --bg:#0f1320;
+  --card:#171c2c;
+  --muted:#8b93a7;
+  --text:#e8ecff;
+  --brand:#6aa5ff;
+  --ring:rgba(122,180,255,.35);
+  --shadow:0 10px 30px rgba(0,0,0,.35);
+  --radius:18px;
 }
 
 *{box-sizing:border-box}
 html,body{height:100%}
 body{
   margin:0;
-  font: 14px/1.5 Inter,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,'Helvetica Neue',Arial;
+  font:14px/1.5 Inter,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,'Helvetica Neue',Arial;
   color:var(--text);
-  background: radial-gradient(1200px 600px at 20% -10%,rgba(106,165,255,.15),transparent 60%),
-              radial-gradient(1000px 500px at 80% -20%,rgba(125,240,255,.12),transparent 55%),
-              var(--bg);
+  background:
+    radial-gradient(1200px 600px at 20% -10%,rgba(106,165,255,.15),transparent 60%),
+    radial-gradient(1000px 500px at 80% -20%,rgba(125,240,255,.12),transparent 55%),
+    var(--bg);
 }
 
+/* Top bar */
 .topbar{
-  display:flex;justify-content:space-between;align-items:center;
+  position:sticky; top:0; z-index:1000;
+  display:flex; justify-content:space-between; align-items:center;
   padding:20px clamp(16px,4vw,40px);
   border-bottom:1px solid rgba(255,255,255,.05);
   backdrop-filter: blur(6px);
+  transform: translateY(0);
+  transition: transform .22s ease;
 }
+.topbar.is-hidden{ transform: translateY(-100%); }
 
-.brand{display:flex;align-items:center;gap:12px}
-.logo{width:34px;height:34px;filter:drop-shadow(0 6px 14px rgba(0,0,0,.3))}
-h1{font-size:22px;margin:0;font-weight:700;letter-spacing:.3px}
-
-.actions{display:flex;align-items:center;gap:10px}
+.brand{display:flex; align-items:center; gap:12px}
+h1{margin:0; font-size:22px; font-weight:800; letter-spacing:.3px}
+.actions{display:flex; align-items:center; gap:10px}
 .pill{
   background:linear-gradient(90deg,rgba(106,165,255,.15),rgba(125,240,255,.15));
   border:1px solid var(--ring);
-  padding:10px 14px;border-radius:999px;color:#cfe2ff; font-weight:600;
+  padding:10px 14px; border-radius:999px; color:#cfe2ff; font-weight:700;
 }
 .btn{
-  padding:10px 16px;border-radius:999px;border:1px solid rgba(255,255,255,.1);
-  background:linear-gradient(180deg,#202845,#171c2c);color:#cfe2ff;font-weight:600;
-  cursor:pointer; box-shadow: var(--shadow);
+  padding:10px 16px; border-radius:999px; border:1px solid rgba(255,255,255,.1);
+  background:linear-gradient(180deg,#202845,#171c2c); color:#cfe2ff; font-weight:700;
+  cursor:pointer; box-shadow:var(--shadow);
 }
-.btn:hover{border-color:var(--brand);box-shadow:0 0 0 4px rgba(106,165,255,.12),var(--shadow)}
+.btn:hover{border-color:var(--brand); box-shadow:0 0 0 4px rgba(106,165,255,.12),var(--shadow)}
 
-.container{padding:24px clamp(16px,4vw,40px);margin:auto;max-width:1300px}
-.grid{display:grid;grid-template-columns:1fr;gap:24px;margin-bottom:24px}
-@media(min-width:900px){.grid{grid-template-columns:1fr 1fr}}
+/* Layout */
+.container{padding:24px clamp(16px,4vw,40px); margin:auto; max-width:1300px}
+.grid{display:grid; grid-template-columns:1fr; gap:24px; margin-bottom:24px}
+@media(min-width:900px){ .grid{ grid-template-columns:1fr 1fr }}
 
+/* Cards & lists */
 .card{
   background: linear-gradient(180deg, rgba(23,28,44,.85), rgba(17,21,36,.92));
   border:1px solid rgba(255,255,255,.06);
-  border-radius: var(--radius); padding:18px; box-shadow: var(--shadow);
+  border-radius:var(--radius); padding:18px; box-shadow:var(--shadow);
 }
-.card-header{display:flex;align-items:end;justify-content:space-between;margin-bottom:12px}
-h2{margin:0;font-size:18px;letter-spacing:.2px}
-.subtle{color:var(--muted);font-size:12px}
+.card-header{display:flex; align-items:end; justify-content:space-between; margin-bottom:12px}
+h2{margin:0; font-size:18px; letter-spacing:.2px}
+.subtle{color:var(--muted); font-size:12px}
 
-.logo-strip{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
-.logo-figure{display:flex;flex-direction:column;align-items:center;gap:6px}
-.logo-img{width:36px;height:36px;object-fit:contain;opacity:.9}
-.logo-figure figcaption{font-size:11px;color:var(--muted)}
+.list{display:grid; gap:10px; margin:0; padding:0; list-style:none}
+.row{background:#0f1320aa; border:1px solid rgba(255,255,255,.06); border-radius:12px; padding:10px}
+.row .top{display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:6px; font-weight:700}
+.bar{height:8px; border-radius:8px; overflow:hidden; background:rgba(255,255,255,.08)}
+.bar>i{display:block; height:100%; width:0%; background:linear-gradient(90deg,#6aa5ff,#9fd4ff); transition:width .5s ease}
 
-.list{display:grid;gap:8px;margin-top:10px}
-.list .row{display:flex;justify-content:space-between;gap:8px;background:#0f1320aa;padding:8px 10px;border-radius:12px;border:1px solid rgba(255,255,255,.05)}
-.row b{color:#e4ecff}
+.row.empty{display:flex; justify-content:center; color:var(--muted); font-weight:600}
 
-.accordion{display:grid;gap:10px}
-.acc-item{border:1px solid rgba(255,255,255,.06);border-radius:12px;overflow:hidden;background:#101528}
-.acc-head{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;cursor:pointer}
-.acc-head:hover{background:#0f1424}
-.acc-body{display:none;padding:10px 12px;border-top:1px solid rgba(255,255,255,.06)}
-.acc-body ul{margin:0;padding-left:18px}
-.acc-open .acc-body{display:block}
-
-.footnote{color:var(--muted);font-size:12px;margin-top:14px}
-/* === Mobile-safe sticky topbar + instant reappear on scroll up === */
-.topbar,
-#appHeader {                     /* supports either .topbar or #appHeader */
-  position: sticky;
-  top: 0;
-  z-index: 1000;
-  transform: translateY(0);
-  transition: transform .22s ease;
-  will-change: transform;
-  /* Respect iPhone notch when the URL bar shows/hides */
-  padding-top: calc(env(safe-area-inset-top, 0px) + 20px);
-}
-
-.topbar.is-hidden,
-#appHeader.is-hidden {
-  transform: translateY(calc(-100% - env(safe-area-inset-top, 0px)));
-}
-
-/* Crisper tap behavior on mobile */
-a, button { touch-action: manipulation; }
-
-/* Ensure the entire image is a tap target for spec-sheet links */
-.spec-link { display: block; }
-
+/* Footer note */
+.footnote{color:var(--muted); font-size:12px; margin-top:12px}

@@ -2,378 +2,158 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <!-- Keep your fetch sources the same; improve mobile viewport behavior -->
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <title>IPEC Sales Dashboard</title>
-  <style>
-    /* ---- Base (dark, clean) ---- */
-    :root{
-      --bg:#0f1420;
-      --panel:#161c2a;
-      --panel2:#1b2333;
-      --text:#e6edf6;
-      --muted:#9aa4b2;
-      --accent:#4da3ff;
-      --ok:#2ecc71;
-      --warn:#ffcc66;
-      --danger:#ff6b6b;
-      --radius:16px;
-      --shadow: 0 10px 30px rgba(0,0,0,.35);
-    }
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{
-      margin:0;
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
-      color:var(--text);
-      background: radial-gradient(1200px 600px at 50% -200px, #1a2233 0%, #0f1420 60%) no-repeat, var(--bg);
-      -webkit-tap-highlight-color: transparent;
-    }
 
-    /* ---- Page frame ---- */
-    .wrap{
-      max-width:1200px;          /* keeps page from stretching */
-      margin:0 auto;
-      padding:16px;
-    }
+  <!-- Fonts (optional, looks nicer) -->
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
 
-    /* Sticky header with hide/show on scroll (mobile-safe) */
-    header{
-      position:sticky;
-      top:0;
-      z-index:10;
-      background:linear-gradient(to bottom, rgba(15,20,32,.95), rgba(15,20,32,.6));
-      backdrop-filter: blur(6px);
-      border-bottom:1px solid rgba(255,255,255,.06);
-      transform: translateY(0);
-      transition: transform .22s ease;
-      will-change: transform;
-      padding-top: env(safe-area-inset-top, 0px);
-    }
-    header.is-hidden{
-      transform: translateY(calc(-100% - env(safe-area-inset-top, 0px)));
-    }
-
-    .header-bar{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      padding:14px 0;
-      gap:12px;
-    }
-    .title{
-      font-size:22px;
-      font-weight:800;
-      letter-spacing:.3px;
-    }
-    .actions{display:flex; gap:10px; align-items:center}
-    .chip{
-      padding:10px 14px;
-      border-radius:999px;
-      background:var(--panel2);
-      border:1px solid rgba(255,255,255,.08);
-      box-shadow: var(--shadow);
-      font-weight:700;
-      font-size:14px;
-      white-space:nowrap;
-    }
-    .btn{
-      padding:10px 14px;
-      border-radius:999px;
-      background:transparent;
-      border:1px solid rgba(255,255,255,.15);
-      color:var(--text);
-      cursor:pointer;
-      font-weight:600;
-      transition: .15s ease;
-      touch-action: manipulation;
-    }
-    .btn:hover{background:rgba(255,255,255,.06)}
-
-    /* ---- Grid ---- */
-    main{
-      padding:18px 0 40px;
-    }
-    .grid{
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap:16px;
-    }
-    @media (max-width:900px){
-      .grid{grid-template-columns:1fr}
-    }
-
-    /* ---- Card ---- */
-    .card{
-      background:linear-gradient(180deg, var(--panel), var(--panel2));
-      border:1px solid rgba(255,255,255,.06);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      overflow:hidden;
-    }
-    .card h3{
-      margin:0;
-      padding:14px 16px;
-      font-size:16px;
-      border-bottom:1px solid rgba(255,255,255,.06);
-      color:#dfe8f7;
-      display:flex; align-items:center; justify-content:space-between; gap:10px;
-    }
-    .small{color:var(--muted); font-weight:600; font-size:12px}
-    .card .body{
-      padding:12px 12px 6px;
-    }
-
-    /* ---- Lists with bars ---- */
-    .list{display:flex; flex-direction:column; gap:10px; margin:0; padding:0; list-style:none}
-    .row{
-      background:rgba(255,255,255,.02);
-      border:1px solid rgba(255,255,255,.06);
-      border-radius:12px;
-      padding:10px;
-    }
-    .row .top{
-      display:flex; align-items:center; justify-content:space-between; gap:10px;
-      margin-bottom:6px;
-      font-weight:700;
-      font-size:14px;
-    }
-    .bar{
-      height:8px; border-radius:8px; overflow:hidden; background:rgba(255,255,255,.06);
-    }
-    .bar > i{
-      display:block; height:100%; width:0%;
-      background:linear-gradient(90deg, var(--accent), #7cc6ff);
-      transition: width .6s ease;
-    }
-    .empty{
-      text-align:center; color:var(--muted); padding:18px 6px 22px; font-weight:600;
-    }
-
-    /* ---- Footnote ---- */
-    .foot{
-      margin-top:16px;
-      color:var(--muted);
-      font-size:12px;
-      text-align:center;
-    }
-  </style>
+  <!-- Our styles -->
+  <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <header id="appHeader">
-    <div class="wrap header-bar">
-      <div class="title">IPEC Sales Dashboard</div>
-      <div class="actions">
-        <div id="totalSales" class="chip">Total Sales: $0</div>
-        <button class="btn" id="btnRefresh">Refresh</button>
-      </div>
+  <header id="appHeader" class="topbar">
+    <div class="brand">
+      <h1>IPEC Sales Dashboard</h1>
+    </div>
+    <div class="actions">
+      <div id="totalSales" class="pill">Total Sales: $0</div>
+      <button id="btnRefresh" class="btn">Refresh</button>
     </div>
   </header>
 
-  <main class="wrap">
-    <div class="grid">
-      <section class="card">
-        <h3>Top Suppliers (Sales)<span class="small" id="suppliersCount">–</span></h3>
-        <div class="body"><ul id="listSuppliers" class="list"></ul></div>
-      </section>
+  <main class="container">
+    <section class="grid">
+      <article class="card">
+        <div class="card-header">
+          <h2>Top Suppliers (Sales)</h2>
+          <div class="subtle" id="suppliersCount">–</div>
+        </div>
+        <ul id="listSuppliers" class="list"></ul>
+      </article>
 
-      <section class="card">
-        <h3>Top Selling Items (Overall)<span class="small" id="itemsCount">–</span></h3>
-        <div class="body"><ul id="listItems" class="list"></ul></div>
-      </section>
+      <article class="card">
+        <div class="card-header">
+          <h2>Top Selling Items (Overall)</h2>
+          <div class="subtle" id="itemsCount">–</div>
+        </div>
+        <ul id="listItems" class="list"></ul>
+      </article>
+    </section>
 
-      <section class="card">
-        <h3>Top Clients<span class="small" id="clientsCount">–</span></h3>
-        <div class="body"><ul id="listClients" class="list"></ul></div>
-      </section>
+    <section class="grid">
+      <article class="card">
+        <div class="card-header">
+          <h2>Top Clients</h2>
+          <div class="subtle" id="clientsCount">–</div>
+        </div>
+        <ul id="listClients" class="list"></ul>
+      </article>
 
-      <section class="card">
-        <h3>Top 10 Unit Sales per Category<span class="small" id="catsCount">–</span></h3>
-        <div class="body"><ul id="listCats" class="list"></ul></div>
-      </section>
-    </div>
+      <article class="card">
+        <div class="card-header">
+          <h2>Top 10 Unit Sales per Category</h2>
+          <div class="subtle" id="catsCount">–</div>
+        </div>
+        <ul id="listCats" class="list"></ul>
+      </article>
+    </section>
 
-    <div class="foot">
-      Data is read from <strong>agg.json</strong> in the same folder. If no data is found, lists show a friendly message.
-    </div>
+    <p class="footnote">
+      Data comes from <code>/public/agg.json</code> created at build. If it’s missing, the lists will show “No data found.”
+    </p>
   </main>
 
   <script>
-    // --------- Helpers (no frameworks) ----------
-    const $ = sel => document.querySelector(sel);
+    // ------- tiny helpers -------
+    const $ = s => document.querySelector(s);
+    const money = n => (Number(n)||0).toLocaleString(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0});
+    const num   = n => (Number(n)||0).toLocaleString();
 
-    function number(n){ return n.toLocaleString(undefined,{maximumFractionDigits:0}); }
-    function money(n){ return n.toLocaleString(undefined,{style:'currency', currency:'USD', maximumFractionDigits:0}); }
-
-    // Render a ranked list with bars
-    function renderList(el, rows, valueKey, valueFormat = v => v, topN = 10){
-      el.innerHTML = '';
-      if(!rows || rows.length === 0){
-        el.innerHTML = `<div class="empty">No data found.</div>`;
+    function renderList(ul, rows, valueKey, format=(v)=>v, topN=10){
+      ul.innerHTML = '';
+      if(!rows || !rows.length){
+        ul.innerHTML = '<li class="row empty">No data found.</li>';
         return;
       }
-      const max = Math.max(...rows.map(r => r[valueKey] || 0)) || 1;
+      const max = Math.max(...rows.map(r => r[valueKey]||0)) || 1;
       rows.slice(0, topN).forEach(r=>{
-        const v = r[valueKey] || 0;
-        const pct = Math.max(3, Math.round((v/max)*100)); // keep small bars visible
-        const name = r.name || r.label || r.code || '—';
-        const sub = r.sub || '';
-        const row = document.createElement('li');
-        row.className = 'row';
-        row.innerHTML = `
+        const v = r[valueKey]||0;
+        const pct = Math.max(3, Math.round((v/max)*100));
+        const name = r.name || r.label || r.code || r.supplier || '—';
+        const sub  = r.sub || '';
+        const li = document.createElement('li');
+        li.className = 'row';
+        li.innerHTML = `
           <div class="top">
-            <div>${name}${sub ? ` <span class="small">• ${sub}</span>` : ''}</div>
-            <div>${valueFormat(v)}</div>
+            <div>${name}${sub?` <span class="subtle">• ${sub}</span>`:''}</div>
+            <div>${format(v)}</div>
           </div>
           <div class="bar"><i style="width:${pct}%"></i></div>
         `;
-        el.appendChild(row);
+        ul.appendChild(li);
       });
     }
 
-    // Accept two shapes:
-    // A) Raw transactions: { sales: [ {itemCode,itemName,supplier,client,category,qty,unitPrice} ] }
-    // B) Pre-aggregated: {
-    //      totals: { totalSales: number },
-    //      suppliers:[{name,totalSales}], items:[{name,units}], clients:[{name,totalSales}], categories:[{name,units}]
-    //    }
-    function aggregate(data){
-      // If pre-aggregated, just normalize keys and return
-      if(data && (data.items || data.suppliers || data.clients || data.categories || data.totals)){
-        const totalSales = data.totals?.totalSales ?? 0;
-        return {
-          totalSales,
-          suppliers: (data.suppliers||[]).map(d=>({name:d.name||d.supplier||'—', total: +d.totalSales||0})),
-          items:     (data.items||[]).map(d=>({name:d.name||d.itemName||d.code||'—', units:+(d.units||d.qty||0)})),
-          clients:   (data.clients||[]).map(d=>({name:d.name||d.client||'—', total:+(d.totalSales||0)})),
-          categories:(data.categories||[]).map(d=>({name:d.name||d.category||'—', units:+(d.units||0)}))
-        };
-      }
-
-      // Else, build from raw sales
-      const sales = Array.isArray(data?.sales) ? data.sales : [];
-      const bySupplier = new Map();
-      const byItem = new Map();
-      const byClient = new Map();
-      const byCat = new Map();
-      let total = 0;
-
-      for(const s of sales){
-        const qty = +s.qty || 0;
-        const price = +s.unitPrice || 0;
-        const amount = qty * price;
-        total += amount;
-
-        if(s.supplier){
-          bySupplier.set(s.supplier, (bySupplier.get(s.supplier)||0) + amount);
-        }
-        const itemLabel = s.itemName || s.itemCode || '—';
-        byItem.set(itemLabel, (byItem.get(itemLabel)||0) + qty);
-
-        if(s.client){
-          byClient.set(s.client, (byClient.get(s.client)||0) + amount);
-        }
-        if(s.category){
-          byCat.set(s.category, (byCat.get(s.category)||0) + qty);
-        }
-      }
-
-      const suppliers = [...bySupplier].map(([name,total])=>({name,total})).sort((a,b)=>b.total-a.total);
-      const items = [...byItem].map(([name,units])=>({name,units})).sort((a,b)=>b.units-a.units);
-      const clients = [...byClient].map(([name,total])=>({name,total})).sort((a,b)=>b.total-a.total);
-      const categories = [...byCat].map(([name,units])=>({name,units})).sort((a,b)=>b.units-a.units);
-
-      return { totalSales: total, suppliers, items, clients, categories };
-    }
-
     async function loadAgg(){
-      const url = new URL('agg.json', window.location.href);
-      // cache-bust so updates show immediately
-      url.searchParams.set('_', Date.now());
-      const res = await fetch(url, { cache:'no-store' });
-      if(!res.ok) throw new Error(`agg.json HTTP ${res.status}`);
-      // If the file is empty, JSON parse will fail; handle that
+      const u = new URL('/agg.json', location.href);
+      u.searchParams.set('_', Date.now());            // cache-bust
+      const res = await fetch(u, { cache:'no-store' });
+      if(!res.ok) throw new Error('agg.json not found');
       const text = await res.text();
       if(!text.trim()) return {};
       try { return JSON.parse(text); } catch { return {}; }
     }
 
+    function normalize(data){
+      // expects build output shape:
+      // { totalSales, topSuppliers:[{supplier,sales}],
+      //   topItemsOverall:[{code,qty,sales}], topClients:[{name,phone,sales}],
+      //   topByCategory:{ cat:[{code,qty}] } }
+      const suppliers = (data.topSuppliers||[]).map(d=>({ name:d.supplier, total:d.sales }));
+      const items     = (data.topItemsOverall||[]).map(d=>({ name:d.code, units:d.qty, total:d.sales }));
+      const clients   = (data.topClients||[]).map(d=>({ name:d.name || d.phone || '(Unknown)', total:d.sales }));
+      const cats = [];
+      Object.entries(data.topByCategory||{}).forEach(([cat, arr])=>{
+        cats.push(...arr.map(x=>({ name: `${cat} • ${x.code}`, units:x.qty })));
+      });
+      return { suppliers, items, clients, cats, totalSales: data.totalSales||0 };
+    }
+
     async function render(){
-      // show placeholder while loading
       $('#totalSales').textContent = 'Loading…';
+      let raw = {};
+      try { raw = await loadAgg(); } catch(e){ console.warn(e); }
+      const data = normalize(raw);
 
-      let raw;
-      try{
-        raw = await loadAgg();
-      }catch(e){
-        console.warn('No agg.json or unreachable:', e);
-        raw = {}; // fallback to empty
-      }
+      // header
+      $('#totalSales').textContent    = `Total Sales: ${money(data.totalSales)}`;
+      $('#suppliersCount').textContent= `${data.suppliers.length} suppliers`;
+      $('#itemsCount').textContent    = `${data.items.length} items ranked`;
+      $('#clientsCount').textContent  = `${data.clients.length} clients`;
+      $('#catsCount').textContent     = `${data.cats.length} category rows`;
 
-      const data = aggregate(raw);
-
-      // Header totals
-      $('#totalSales').textContent = `Total Sales: ${money(data.totalSales||0)}`;
-
-      // Counts (top-right chip text)
-      $('#suppliersCount').textContent = data.suppliers?.length ? `${data.suppliers.length} suppliers` : '0 suppliers';
-      $('#itemsCount').textContent     = data.items?.length ? `${data.items.length} items ranked` : '0 items ranked';
-      $('#clientsCount').textContent   = data.clients?.length ? `${data.clients.length} clients` : '0 clients';
-      $('#catsCount').textContent      = data.categories?.length ? `${data.categories.length} categories` : '0 categories';
-
-      // Lists
+      // lists
       renderList($('#listSuppliers'), data.suppliers, 'total', money, 10);
-      renderList($('#listItems'),     data.items,     'units', v=>number(v)+' pcs', 10);
+      renderList($('#listItems'),     data.items,     'units', v=>`${num(v)} pcs`, 10);
       renderList($('#listClients'),   data.clients,   'total', money, 10);
-      renderList($('#listCats'),      data.categories,'units', v=>number(v)+' pcs', 10);
+      renderList($('#listCats'),      data.cats,      'units', v=>`${num(v)} pcs`, 10);
     }
 
     $('#btnRefresh').addEventListener('click', render);
     render();
 
-    // --------- Mobile-safe header hide/show on scroll ---------
+    // sticky header: quick show on scroll up, hide on scroll down
     (function(){
-      const header = document.getElementById('appHeader');
-      if(!header) return;
-
-      let lastY = window.scrollY || 0;
-      let ticking = false;
-      const THRESHOLD = 2; // avoid iOS jitter from URL bar animations
-
-      function onScrollFrame(){
-        const y = window.scrollY || 0;
-        const dy = y - lastY;
-
-        if(Math.abs(dy) > THRESHOLD){
-          if(dy > 0){
-            // Scrolling DOWN → hide
-            header.classList.add('is-hidden');
-          }else{
-            // Scrolling UP → show immediately
-            header.classList.remove('is-hidden');
-          }
-          lastY = y;
-        }
-        ticking = false;
+      const h = $('#appHeader'); if(!h) return;
+      let last = window.scrollY; let ticking=false;
+      function frame(){
+        const y = window.scrollY; const dy = y-last;
+        if(Math.abs(dy)>2){ h.classList.toggle('is-hidden', dy>0); last=y; }
+        ticking=false;
       }
-
-      function onScroll(){
-        if(!ticking){
-          ticking = true;
-          requestAnimationFrame(onScrollFrame);
-        }
-      }
-
-      window.addEventListener('scroll', onScroll, { passive: true });
-
-      // iOS Safari: visual viewport changes may happen without window scroll
-      if(window.visualViewport){
-        visualViewport.addEventListener('scroll', onScroll, { passive: true });
-        visualViewport.addEventListener('resize', onScroll, { passive: true });
-      }
-
-      // Make sure no global touch handler blocks taps
-      document.addEventListener('touchstart', function(){}, { passive: true });
+      addEventListener('scroll', ()=>{ if(!ticking){ ticking=true; requestAnimationFrame(frame); } }, {passive:true});
     })();
   </script>
 </body>
