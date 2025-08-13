@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>IPEC Sales Dashboard</title>
+  <link rel="stylesheet" href="./styles.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header class="wrap">
+    <h1>IPEC Sales Dashboard</h1>
+    <div class="meta">
+      <span id="totalSales" class="kpi"></span>
+      <button id="refreshBtn">Refresh</button>
+    </div>
+  </header>
+
+  <main class="wrap grid">
+    <section class="card">
+      <h2>Top Suppliers (Sales)</h2>
+      <canvas id="suppliersChart"></canvas>
+      <div id="suppliersLogos" class="logo-row"></div>
+    </section>
+
+    <section class="card">
+      <h2>Top Selling Items (Overall)</h2>
+      <div id="itemsGrid" class="items-grid"></div>
+    </section>
+
+    <section class="card">
+      <h2>Top 10 Unit Sales per Category</h2>
+      <div id="categories"></div>
+    </section>
+  </main>
+
+  <footer class="wrap">
+    <small>Data cached for quick loads. Images match item codes; logos match supplier names.</small>
+  </footer>
+
+  <script src="./app.js"></script>
+</body>
+</html>

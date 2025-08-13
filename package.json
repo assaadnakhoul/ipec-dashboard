@@ -1,0 +1,16 @@
+{
+  "name": "ipec-dashboard",
+  "private": true,
+  "scripts": {
+    "dev": "npx serve public",
+    "build": "echo 'Static build'",
+    "netlify:serve": "netlify dev"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^6.6.0",
+    "googleapis": "^131.0.0",
+    "google-auth-library": "^9.14.1",
+    "xlsx": "^0.18.5",
+    "node-fetch": "^3.3.2"
+  }
+}

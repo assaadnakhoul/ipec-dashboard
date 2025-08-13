@@ -1,0 +1,12 @@
+[build]
+  publish = "public"
+  functions = "netlify/functions"
+
+[[plugins]]
+  package = "@netlify/plugin-functions-install-core"
+  # ensures dependencies are available in functions
+
+# Optional: schedule a cache warm-up every hour
+[[scheduled.functions]]
+  path = "warm-cache"
+  schedule = "@hourly"
