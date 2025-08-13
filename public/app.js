@@ -36,7 +36,7 @@ function makeBar(id, labels, values, label) {
 }
 
 async function loadData() {
-  const res = await fetch('/agg.json', { cache: 'no-store' });
+  const res = await fetch('agg.json', { cache: 'no-store' });
   if (!res.ok) throw new Error('agg.json not found');
   return res.json();
 }
