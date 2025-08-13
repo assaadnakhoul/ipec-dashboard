@@ -4,10 +4,12 @@
   "private": true,
   "type": "module",
   "engines": { "node": ">=18" },
+  "scripts": {
+    "build": "node scripts/build-agg.js"
+  },
   "dependencies": {
     "googleapis": "^131.0.0",
     "google-auth-library": "^9.14.1",
-    "xlsx": "^0.18.5",
-    "node-fetch": "^3.3.2"
+    "xlsx": "^0.18.5"
   }
 }
