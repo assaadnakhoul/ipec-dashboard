@@ -1,279 +1,395 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="utf-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1"
+  />
   <title>IPEC Sales Dashboard</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- keep your theme -->
   <link rel="stylesheet" href="styles.css" />
-  <style>
-    /* Only for new bits (category chips + sort buttons) – minimal, matches your theme */
-    .chips { display:flex; flex-wrap:wrap; gap:.5rem; margin:.5rem 0 1rem; }
-    .chip {
-      padding:.3rem .7rem; border-radius:999px; border:1px solid rgba(255,255,255,.12);
-      background:rgba(255,255,255,.06); color:#cfe2ff; cursor:pointer; font-size:.85rem;
-      transition:background .15s ease, color .15s ease, border-color .15s ease;
-    }
-    .chip:hover { background:rgba(255,255,255,.1) }
-    .chip.active { background:#0b84ff; border-color:#0b84ff; color:#fff; }
 
-    .section-header { display:flex; align-items:center; justify-content:space-between; gap:1rem; }
-    .sort-toggle { display:flex; align-items:center; gap:.4rem; }
-    .btn-sort {
-      padding:.35rem .6rem; border-radius:.4rem; border:1px solid rgba(255,255,255,.12);
-      background:rgba(255,255,255,.06); color:#cfe2ff; cursor:pointer; font-size:.85rem;
-    }
-    .btn-sort.active { background:#0b84ff; border-color:#0b84ff; color:#fff; }
-  </style>
+  <!-- Fallback fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet"/>
 </head>
 <body>
-  <div class="wrap">
-    <!-- top bar -->
-    <header class="page-header">
+  <header class="page-header">
+    <div class="title-row">
       <h1>IPEC Sales Dashboard</h1>
+
       <div class="actions">
-        <div id="totalSales" class="pill">Total Sales: $0</div>
-        <button id="btnRefresh" class="btn">Refresh</button>
+        <div id="totalSales" class="badge">Total Sales: $0</div>
+        <button id="refreshBtn" class="btn">Refresh</button>
       </div>
-    </header>
-
-    <!-- NEW: categories chips -->
-    <div id="categoriesBar" class="chips"></div>
-
-    <!-- grid -->
-    <div class="grid">
-      <!-- Top Suppliers -->
-      <section class="card">
-        <div class="card-title">
-          <h2>Top Suppliers (Sales)</h2>
-          <span id="suppliersCount" class="muted"></span>
-        </div>
-        <ul id="listSuppliers" class="list"></ul>
-      </section>
-
-      <!-- Top Items with sort toggle -->
-      <section class="card">
-        <div class="card-title section-header">
-          <div>
-            <h2>Top Selling Items</h2>
-            <span id="itemsCount" class="muted"></span>
-          </div>
-          <div class="sort-toggle">
-            <span class="muted">Sort by:</span>
-            <button class="btn-sort active" data-sort="qty">Units</button>
-            <button class="btn-sort" data-sort="value">Value</button>
-          </div>
-        </div>
-        <ul id="listItems" class="list"></ul>
-      </section>
-
-      <!-- Top Clients -->
-      <section class="card">
-        <div class="card-title">
-          <h2>Top Clients</h2>
-          <span id="clientsCount" class="muted"></span>
-        </div>
-        <ul id="listClients" class="list"></ul>
-      </section>
-
-      <!-- Top by Category -->
-      <section class="card">
-        <div class="card-title">
-          <h2>Top 10 Unit Sales per Category</h2>
-          <span id="catsCount" class="muted"></span>
-        </div>
-        <ul id="listCats" class="list"></ul>
-      </section>
     </div>
 
-    <p class="muted footnote">
-      Data comes from <code>/public/agg.json</code> or the server cache (Netlify Blobs).
-    </p>
-  </div>
+    <!-- Category chips -->
+    <div id="categoryBar" class="chips">
+      <!-- Dynamically filled with: All, Category A, Category B, ... -->
+    </div>
+  </header>
+
+  <main class="grid">
+    <!-- Top Suppliers -->
+    <section class="card">
+      <div class="card-head">
+        <h2>Top Suppliers (Sales)</h2>
+        <small id="suppliersCount" class="muted"></small>
+      </div>
+      <div id="suppliersList" class="list"></div>
+      <button data-target="suppliersList" class="show-more" hidden>Show more</button>
+    </section>
+
+    <!-- Top Selling Items -->
+    <section class="card">
+      <div class="card-head">
+        <h2>Top Selling Items</h2>
+        <div class="inline">
+          <span class="muted">Sort by:</span>
+          <div class="seg">
+            <button id="sortUnits" class="seg-btn seg-active">Units</button>
+            <button id="sortValue" class="seg-btn">Value</button>
+          </div>
+        </div>
+      </div>
+      <div id="itemsList" class="list"></div>
+      <button data-target="itemsList" class="show-more" hidden>Show more</button>
+    </section>
+
+    <!-- Top Clients -->
+    <section class="card">
+      <div class="card-head">
+        <h2>Top Clients</h2>
+        <small id="clientsCount" class="muted"></small>
+      </div>
+      <div id="clientsList" class="list"></div>
+      <button data-target="clientsList" class="show-more" hidden>Show more</button>
+    </section>
+
+    <!-- Top 10 Unit Sales per Category -->
+    <section class="card">
+      <div class="card-head">
+        <h2>Top 10 Unit Sales per Category</h2>
+        <small id="catRowsCount" class="muted"></small>
+      </div>
+      <div id="byCategoryList" class="list"></div>
+      <button data-target="byCategoryList" class="show-more" hidden>Show more</button>
+    </section>
+  </main>
+
+  <footer class="footnote">
+    Data comes from <code>/public/agg.json</code> or the server cache (Netlify Blobs).
+  </footer>
 
   <script>
-    // ---------- helpers ----------
-    const $  = s => document.querySelector(s);
-    const $$ = s => document.querySelectorAll(s);
-    const money = n => (Number(n)||0).toLocaleString(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0});
-    const num   = n => (Number(n)||0).toLocaleString();
+    // -----------------------------
+    // Small helpers
+    // -----------------------------
+    const $ = (s, root = document) => root.querySelector(s);
+    const $$ = (s, root = document) => [...root.querySelectorAll(s)];
+    const fmtUSD = (n) => "$" + (Number(n || 0)).toLocaleString();
+    const fmtUnits = (n) => (Number(n || 0)).toLocaleString() + " pcs";
 
-    function renderListCollapsible(ul, rows, valueKey, fmt=(v)=>v){
-      ul.innerHTML = '';
-      if(!rows || !rows.length){ ul.innerHTML = '<li class="row empty">No data found.</li>'; return; }
-      const max = Math.max(...rows.map(r => r[valueKey]||0)) || 1;
-
-      function makeRow(r){
-        const v = r[valueKey]||0;
-        const pct = Math.max(3, Math.round((v/max)*100));
-        const name = r.name || r.label || r.code || r.supplier || '—';
-        const sub  = r.sub || '';
-        const li = document.createElement('li');
-        li.className = 'row';
-        li.innerHTML = `
-          <div class="top">
-            <div>${name}${sub?` <span class="subtle">• ${sub}</span>`:''}</div>
-            <div>${fmt(v)}</div>
+    function makeProgressRow({ label, right, value, maxValue }) {
+      const pct = maxValue > 0 ? Math.max(2, (value / maxValue) * 100) : 0;
+      return `
+        <div class="row">
+          <div class="row-top">
+            <span class="label" title="${label}">${label}</span>
+            <span class="right">${right}</span>
           </div>
-          <div class="bar"><i style="width:${pct}%"></i></div>
-        `;
-        return li;
-      }
+          <div class="bar"><div class="bar-fill" style="width:${pct}%"></div></div>
+        </div>
+      `;
+    }
 
-      const head = rows.slice(0, 5).map(makeRow);
-      head.forEach(li => ul.appendChild(li));
-
-      if(rows.length > 5){
-        const more = rows.slice(5, 10).map(makeRow);
-        const moreBox = document.createElement('div');
-        moreBox.style.display = 'none';
-        more.forEach(li => moreBox.appendChild(li));
-        ul.appendChild(moreBox);
-
-        const btn = document.createElement('button');
-        btn.className = 'btn';
-        btn.style.marginTop = '8px';
-        btn.textContent = 'Show more';
-        let open = false;
+    function attachShowMore(targetId, totalCount) {
+      const btn = document.querySelector(\`.show-more[data-target="\${targetId}"]\`);
+      if (!btn) return;
+      if (totalCount > 5) {
+        btn.hidden = false;
+        btn.textContent = "Show more";
+        btn.dataset.state = "collapsed";
         btn.onclick = () => {
-          open = !open;
-          moreBox.style.display = open ? '' : 'none';
-          btn.textContent = open ? 'Show less' : 'Show more';
+          const list = document.getElementById(targetId);
+          const hidden = list.querySelectorAll(".row.hidden");
+          if (btn.dataset.state === "collapsed") {
+            hidden.forEach((el, i) => { if (i < 5) el.classList.remove("hidden"); });
+            if (list.querySelectorAll(".row.hidden").length === 0) {
+              btn.textContent = "Show less";
+              btn.dataset.state = "expanded";
+            }
+          } else {
+            // Collapse back to 5
+            [...list.querySelectorAll(".row")].slice(5).forEach(el => el.classList.add("hidden"));
+            btn.textContent = "Show more";
+            btn.dataset.state = "collapsed";
+          }
         };
-        const holder = document.createElement('div'); holder.appendChild(btn);
-        ul.appendChild(holder);
-      }
-    }
-
-    // ---------- data fetchers (Netlify) ----------
-    async function getAggFromFunction(){
-      const res = await fetch('/.netlify/functions/get-agg', { cache:'no-store' });
-      if(!res.ok) throw new Error('get-agg failed');
-      return res.json();
-    }
-    async function warmOnce(){
-      const res = await fetch('/.netlify/functions/warm-cache', { cache:'no-store' });
-      if(!res.ok) throw new Error('warm-cache failed');
-      return res.json();
-    }
-    async function loadOrWarm(){
-      let j = await getAggFromFunction();
-      if(j.ready) return j.data;
-
-      // do a few batches on each refresh click
-      for(let i=0;i<5;i++){
-        const w = await warmOnce();
-        if(w.done) break;
-      }
-      j = await getAggFromFunction();
-      if(j.ready) return j.data;
-
-      // final fallback to static file (if you left it)
-      try {
-        const f = await fetch('/agg.json', { cache:'no-store' });
-        if(f.ok) return await f.json();
-      } catch {}
-      return { totalSales:0, topSuppliers:[], topItemsOverall:[], topClients:[], topByCategory:{} };
-    }
-
-    // ---------- state ----------
-    let allData = null;
-    let currentCategory = 'All';
-    let currentSort = 'qty';
-
-    // turn server data into UI arrays we can render
-    function normalize(data){
-      const suppliers = (data.topSuppliers||[]).map(d=>({ name:d.supplier, total:d.sales }));
-      const items     = (data.topItemsOverall||[]).map(d=>({
-        name:d.code,
-        units:d.qty,
-        total:d.sales,
-        category: findCategoryForItem(d.code, data.topByCategory)
-      }));
-      const clients   = (data.topClients||[]).map(d=>({ name:d.name || d.phone || '(Unknown)', total:d.sales }));
-      const cats = [];
-      Object.entries(data.topByCategory||{}).forEach(([cat, arr])=>{
-        cats.push(...arr.map(x=>({ name: `${cat} • ${x.code}`, units:x.qty })));
-      });
-      return {
-        suppliers, items, clients, cats,
-        totalSales: data.totalSales||0,
-        categories: Object.keys(data.topByCategory||{})
-      };
-    }
-
-    // find the first category that lists this code
-    function findCategoryForItem(code, catsObj){
-      for(const cat in catsObj){
-        if(catsObj[cat].some(x=>x.code===code)) return cat;
-      }
-      return 'Uncategorized';
-    }
-
-    // ---------- UI builders ----------
-    function renderCategoriesBar(categories){
-      const bar = $('#categoriesBar');
-      bar.innerHTML = '';
-      const cats = ['All', ...categories];
-      cats.forEach(cat=>{
-        const b = document.createElement('button');
-        b.className = 'chip' + (cat===currentCategory ? ' active':'');
-        b.textContent = cat;
-        b.onclick = () => {
-          currentCategory = cat;
-          $$('#categoriesBar .chip').forEach(x=>x.classList.remove('active'));
-          b.classList.add('active');
-          renderFilteredItems();
-        };
-        bar.appendChild(b);
-      });
-    }
-
-    function renderFilteredItems(){
-      let filtered = allData.items;
-      if(currentCategory !== 'All'){
-        filtered = filtered.filter(i => i.category === currentCategory);
-      }
-      if(currentSort==='qty'){
-        filtered = filtered.sort((a,b)=>b.units-a.units);
-        renderListCollapsible($('#listItems'), filtered, 'units', v=>`${num(v)} pcs`);
       } else {
-        filtered = filtered.sort((a,b)=>b.total-a.total);
-        renderListCollapsible($('#listItems'), filtered, 'total', money);
+        btn.hidden = true;
       }
     }
 
-    async function render(){
-      $('#totalSales').textContent = 'Loading…';
-      const raw = await loadOrWarm();
-      allData = normalize(raw);
+    // -----------------------------
+    // State
+    // -----------------------------
+    let RAW = null;            // whole payload from agg.json / function
+    let sortMode = "units";    // 'units' | 'value'
+    let activeCategory = "All";
 
-      $('#totalSales').textContent     = `Total Sales: ${money(allData.totalSales)}`;
-      $('#suppliersCount').textContent = `${allData.suppliers.length} suppliers`;
-      $('#itemsCount').textContent     = `${allData.items.length} items ranked`;
-      $('#clientsCount').textContent   = `${allData.clients.length} clients`;
-      $('#catsCount').textContent      = `${allData.cats.length} category rows`;
+    // -----------------------------
+    // Data loading (agg.json first, fallback to function)
+    // -----------------------------
+    async function loadData() {
+      // Try public/agg.json first
+      try {
+        const a = await fetch("/agg.json", { cache: "no-store" });
+        if (a.ok) {
+          return await a.json();
+        }
+      } catch (_) {}
 
-      renderListCollapsible($('#listSuppliers'), allData.suppliers, 'total', money);
-      renderListCollapsible($('#listClients'),   allData.clients,   'total', money);
-      renderListCollapsible($('#listCats'),      allData.cats,      'units', v=>`${num(v)} pcs`);
+      // Try server cache (warm-cache)
+      try {
+        const b = await fetch("/.netlify/functions/warm-cache", { cache: "no-store" });
+        if (b.ok) {
+          return await b.json();
+        }
+      } catch (_) {}
 
-      renderCategoriesBar(allData.categories);
-      renderFilteredItems();
+      throw new Error("Could not load data. Is agg.json or warm-cache available?");
     }
 
-    // ---------- events ----------
-    $('#btnRefresh').addEventListener('click', render);
-    $$('.btn-sort').forEach(btn=>{
-      btn.onclick = ()=>{
-        currentSort = btn.dataset.sort;
-        $$('.btn-sort').forEach(b=>b.classList.remove('active'));
-        btn.classList.add('active');
-        renderFilteredItems();
-      };
-    });
+    // -----------------------------
+    // Render functions
+    // -----------------------------
 
-    render();
+    function renderCategoryChips() {
+      const bar = $("#categoryBar");
+      bar.innerHTML = "";
+
+      // Categories from topByCategory keys
+      const keys = Object.keys(RAW.topByCategory || {});
+      keys.sort((a, b) => a.localeCompare(b));
+      const cats = ["All", ...keys];
+
+      cats.forEach(cat => {
+        const chip = document.createElement("button");
+        chip.className = "chip" + (cat === activeCategory ? " chip-active" : "");
+        chip.textContent = cat;
+        chip.onclick = () => {
+          activeCategory = cat;
+          renderAll();
+        };
+        bar.appendChild(chip);
+      });
+    }
+
+    function renderSuppliers() {
+      const list = $("#suppliersList");
+      list.innerHTML = "";
+
+      const rows = (RAW.topSuppliers || []).slice(0, 10); // we will hide after 5 with "show more"
+      const maxVal = rows.length ? Math.max(...rows.map(r => r.sales || 0)) : 0;
+
+      $("#suppliersCount").textContent = `${rows.length} suppliers`;
+
+      rows.forEach((r, i) => {
+        const html = makeProgressRow({
+          label: r.supplier || "Unknown",
+          right: fmtUSD(r.sales || 0),
+          value: r.sales || 0,
+          maxValue: maxVal
+        });
+
+        const wrap = document.createElement("div");
+        wrap.innerHTML = html;
+        const rowEl = wrap.firstElementChild;
+        if (i >= 5) rowEl.classList.add("hidden");
+        list.appendChild(rowEl);
+      });
+
+      attachShowMore("suppliersList", rows.length);
+    }
+
+    function getItemsFilteredSorted() {
+      // Build items from overall list with labels and metrics we need.
+      // RAW.topItemsOverall: array of { code, qty, sales }
+      const raw = RAW.topItemsOverall || [];
+      const byCategory = RAW.topByCategory || {};
+
+      // If category filter is not "All", keep only items present in that category map
+      let filtered = raw;
+      if (activeCategory !== "All" && byCategory[activeCategory]) {
+        const setCodes = new Set((byCategory[activeCategory] || []).map(x => x.code));
+        filtered = raw.filter(it => setCodes.has(it.code));
+      }
+
+      // Sort
+      if (sortMode === "units") {
+        filtered = filtered.sort((a, b) => (b.qty || 0) - (a.qty || 0));
+      } else {
+        filtered = filtered.sort((a, b) => (b.sales || 0) - (a.sales || 0));
+      }
+      return filtered.slice(0, 10); // show up to 10
+    }
+
+    function renderItems() {
+      const list = $("#itemsList");
+      list.innerHTML = "";
+
+      const rows = getItemsFilteredSorted();
+      const maxVal = rows.length
+        ? Math.max(...rows.map(r => sortMode === "units" ? (r.qty || 0) : (r.sales || 0)))
+        : 0;
+
+      rows.forEach((r, i) => {
+        const metric = sortMode === "units" ? (r.qty || 0) : (r.sales || 0);
+        const right = sortMode === "units" ? fmtUnits(metric) : fmtUSD(metric);
+
+        const html = makeProgressRow({
+          label: r.code || "—",
+          right,
+          value: metric,
+          maxValue: maxVal
+        });
+
+        const wrap = document.createElement("div");
+        wrap.innerHTML = html;
+        const rowEl = wrap.firstElementChild;
+        if (i >= 5) rowEl.classList.add("hidden");
+        list.appendChild(rowEl);
+      });
+
+      attachShowMore("itemsList", rows.length);
+    }
+
+    function renderClients() {
+      const list = $("#clientsList");
+      list.innerHTML = "";
+      const rows = (RAW.topClients || []).slice(0, 10);
+      const maxVal = rows.length ? Math.max(...rows.map(r => r.sales || 0)) : 0;
+
+      $("#clientsCount").textContent = `${rows.length} clients`;
+
+      rows.forEach((r, i) => {
+        const label = r.phone ? `${r.name || "Unknown"} • ${r.phone}` : (r.name || "Unknown");
+        const html = makeProgressRow({
+          label,
+          right: fmtUSD(r.sales || 0),
+          value: r.sales || 0,
+          maxValue: maxVal
+        });
+        const wrap = document.createElement("div");
+        wrap.innerHTML = html;
+        const rowEl = wrap.firstElementChild;
+        if (i >= 5) rowEl.classList.add("hidden");
+        list.appendChild(rowEl);
+      });
+
+      attachShowMore("clientsList", rows.length);
+    }
+
+    function renderTopByCategory() {
+      const container = $("#byCategoryList");
+      container.innerHTML = "";
+
+      // We'll flatten the top 10 rows across categories (already pre-aggregated)
+      // RAW.topByCategory = { Category: [{code, qty}, ...], ...}
+      const entries = Object.entries(RAW.topByCategory || {});
+      $("#catRowsCount").textContent = `${entries.length} category rows`;
+
+      // Build a simplified array: label = `${cat} • ${code}`, value = qty
+      let rows = [];
+      entries.forEach(([cat, arr]) => {
+        (arr || []).slice(0, 10).forEach(item => {
+          rows.push({
+            label: `${cat} • ${item.code}`,
+            qty: Number(item.qty || 0)
+          });
+        });
+      });
+
+      // Sort by qty desc then take 10 to avoid a massive list
+      rows = rows.sort((a, b) => b.qty - a.qty).slice(0, 10);
+
+      const maxVal = rows.length ? Math.max(...rows.map(r => r.qty)) : 0;
+      rows.forEach((r, i) => {
+        const html = makeProgressRow({
+          label: r.label,
+          right: fmtUnits(r.qty),
+          value: r.qty,
+          maxValue: maxVal
+        });
+        const wrap = document.createElement("div");
+        wrap.innerHTML = html;
+        const rowEl = wrap.firstElementChild;
+        if (i >= 5) rowEl.classList.add("hidden");
+        container.appendChild(rowEl);
+      });
+
+      attachShowMore("byCategoryList", rows.length);
+    }
+
+    function renderAll() {
+      // Total sales
+      $("#totalSales").textContent = `Total Sales: ${fmtUSD(RAW.totalSales || 0)}`;
+      // Chips
+      renderCategoryChips();
+      // Panels
+      renderSuppliers();
+      renderItems();
+      renderClients();
+      renderTopByCategory();
+    }
+
+    // -----------------------------
+    // Wire up UI events
+    // -----------------------------
+    window.addEventListener("DOMContentLoaded", async () => {
+      // Sort toggles
+      $("#sortUnits").onclick = () => {
+        sortMode = "units";
+        $("#sortUnits").classList.add("seg-active");
+        $("#sortValue").classList.remove("seg-active");
+        renderItems();
+      };
+      $("#sortValue").onclick = () => {
+        sortMode = "value";
+        $("#sortValue").classList.add("seg-active");
+        $("#sortUnits").classList.remove("seg-active");
+        renderItems();
+      };
+
+      $("#refreshBtn").onclick = async () => {
+        $("#refreshBtn").disabled = true;
+        try {
+          // Force warm
+          await fetch("/.netlify/functions/warm-cache?refresh=1", { cache: "no-store" });
+          RAW = await loadData();
+          renderAll();
+        } catch (err) {
+          alert("Refresh failed: " + err.message);
+        } finally {
+          $("#refreshBtn").disabled = false;
+        }
+      };
+
+      // Initial load
+      try {
+        $("#refreshBtn").textContent = "Loading...";
+        RAW = await loadData();
+        renderAll();
+      } catch (err) {
+        console.error(err);
+        alert("Could not load data. Did the build create /public/agg.json or does warm-cache work?");
+      } finally {
+        $("#refreshBtn").textContent = "Refresh";
+      }
+    });
   </script>
 </body>
 </html>
