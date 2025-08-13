@@ -1,24 +1,26 @@
-// netlify/functions/get-agg.js
+// get-agg.js — returns dashboard data if ready, otherwise {ready:false}
 import { getStore } from '@netlify/blobs';
 
 export const handler = async () => {
   try {
-    const store = getStore('ipec-dash');
-    const agg = await store.get('agg.json', { type: 'json' });
-    if (!agg) {
-      const progress = await store.get('progress.json', { type: 'json' });
-      return {
-        statusCode: 200,
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ ready: false, progress: progress || null }),
-      };
+    const store = getStore('ipec-cache');
+    const state = await store.get('state.json', { type: 'json' });
+    if (!state || !state.done) {
+      // let the UI know the cache is not complete yet
+      return resp({ ready: false });
     }
-    return {
-      statusCode: 200,
-      headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
-      body: JSON.stringify({ ready: true, data: agg }),
-    };
+    // strip heavy internal fields before sending to client
+    const { data } = state;
+    return resp({ ready: true, data });
   } catch (e) {
-    return { statusCode: 500, body: JSON.stringify({ error: e.message }) };
+    return resp({ ready: false, error: e.message }, 200);
   }
 };
+
+function resp(body, statusCode = 200) {
+  return {
+    statusCode,
+    headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
+    body: JSON.stringify(body),
+  };
+}

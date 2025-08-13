@@ -1,5 +1,10 @@
+[build]
+  publish = "public"
+  functions = "netlify/functions"
+
 [functions]
-included_files = [
-  "data/suppliers-codes.xlsx",
-  "data/categories-descriptions.xlsx"
-]
+  # ship the two mapping Excels with the functions bundle
+  included_files = [
+    "data/suppliers-codes.xlsx",
+    "data/categories-descriptions.xlsx"
+  ]

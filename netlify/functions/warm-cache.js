@@ -1,288 +1,311 @@
-// netlify/functions/warm-cache.js
-// Processes invoices in small batches and stores the running aggregation in Netlify Blobs.
-// Uses: suppliers prefixes (data/suppliers-codes.xlsx) and categories (data/categories-descriptions.xlsx, col D).
+// warm-cache.js — processes a small batch of invoices from Drive, updates Blobs.
+// Re-run until {done:true}. Safe to call many times.
+
+import { getStore } from '@netlify/blobs';
 import { google } from 'googleapis';
 import * as XLSX from 'xlsx';
-import { getStore } from '@netlify/blobs';
+import fs from 'node:fs';
+import path from 'node:path';
 
+const BATCH_FILES = 12; // how many invoices to parse per warm call
 const SCOPES = ['https://www.googleapis.com/auth/drive.readonly'];
-const BATCH_SIZE = 40; // ~40 files per call (tweak if you need smaller/faster)
 
-const saEmail   = process.env.GDRIVE_SA_EMAIL;
-const saKeyJson = process.env.GDRIVE_SA_KEY;
-const folderA   = process.env.FOLDER_INV_A; // INV-XXX-YYYY
-const folderB   = process.env.FOLDER_INV_B; // IPEC Invoice XXX-YYYY
+const SA_EMAIL = process.env.GDRIVE_SA_EMAIL;
+const SA_KEY   = process.env.GDRIVE_SA_KEY; // full JSON string or private key
+const FOLDER_A = process.env.FOLDER_INV_A;  // INV-XXX-YYYY  (B3=name, B5=phone, B8=total; rows from 12)
+const FOLDER_B = process.env.FOLDER_INV_B;  // IPEC Invoice XXX-YYYY (SUB-TOTAL USD in D/E; B3 name, B4 phone; rows from 9)
 
-function authClient() {
-  const creds = JSON.parse(saKeyJson);
-  return new google.auth.JWT({
-    email: saEmail || creds.client_email,
-    key: creds.private_key,
-    scopes: SCOPES,
+function auth() {
+  // SA_KEY can be either the whole JSON or just the private_key. Try JSON first.
+  let client_email = SA_EMAIL;
+  let private_key = SA_KEY;
+  try {
+    const j = JSON.parse(SA_KEY);
+    client_email = j.client_email || SA_EMAIL;
+    private_key  = j.private_key;
+  } catch {}
+  return new google.auth.JWT({ email: client_email, key: private_key, scopes: SCOPES });
+}
+
+function drive(authClient) {
+  return google.drive({ version: 'v3', auth: authClient });
+}
+
+async function listFiles(drive, folderId, pageToken=null) {
+  const res = await drive.files.list({
+    q: `'${folderId}' in parents and mimeType != 'application/vnd.google-apps.folder'`,
+    fields: 'nextPageToken, files(id,name,mimeType,modifiedTime)',
+    pageSize: 1000,
+    pageToken
   });
+  return { files: res.data.files || [], nextPageToken: res.data.nextPageToken || null };
 }
 
-async function listFolderFiles(drive, folderId) {
-  const files = [];
-  let pageToken = null;
-  do {
-    const res = await drive.files.list({
-      q: `'${folderId}' in parents and mimeType != 'application/vnd.google-apps.folder'`,
-      fields: 'nextPageToken, files(id, name)',
-      pageToken, pageSize: 1000,
-    });
-    files.push(...(res.data.files || []));
-    pageToken = res.data.nextPageToken || null;
-  } while (pageToken);
-  return files;
-}
-
-async function downloadFile(drive, fileId) {
-  const res = await drive.files.get({ fileId, alt: 'media' }, { responseType: 'arraybuffer' });
+async function downloadBuffer(drive, id) {
+  const res = await drive.files.get({ fileId:id, alt:'media' }, { responseType:'arraybuffer' });
   return Buffer.from(res.data);
 }
 
-// -------- Excel helpers (bundled files) --------
-import fs from 'node:fs/promises';
-import path from 'node:path';
-const SUPPLIERS_XLSX   = path.join(process.cwd(), 'data', 'suppliers-codes.xlsx');
-const CATEGORIES_XLSX  = path.join(process.cwd(), 'data', 'categories-descriptions.xlsx');
-
-function loadSupplierRules(buf) {
-  const wb = XLSX.read(buf, { type: 'buffer' });
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  const range = XLSX.utils.decode_range(ws['!ref']);
-  const rules = [];
-  for (let r = range.s.r + 1; r <= range.e.r; r++) {
-    const prefix   = (ws[XLSX.utils.encode_cell({c:0,r})]?.v || '').toString().trim();
-    if (!prefix) continue;
-    const supplier = (ws[XLSX.utils.encode_cell({c:1,r})]?.v || '').toString().trim();
-    const cat      = (ws[XLSX.utils.encode_cell({c:3,r})]?.v || '').toString().trim();
-    rules.push({ prefix, supplier: supplier || 'Unknown', fallbackCategory: cat || 'Uncategorized' });
-  }
-  // longer first
-  return rules.sort((a,b)=>b.prefix.length - a.prefix.length);
+function loadLocalXlsx(relative) {
+  const p = path.join(process.cwd(), relative);
+  return XLSX.read(fs.readFileSync(p));
 }
 
-function loadCategoriesMap(buf) {
-  // Column A = item code, Column D = category name we want.
-  const wb = XLSX.read(buf, { type: 'buffer' });
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  const range = XLSX.utils.decode_range(ws['!ref']);
-  const map = new Map();
-  for (let r = range.s.r + 1; r <= range.e.r; r++) {
-    const code = (ws[XLSX.utils.encode_cell({c:0,r})]?.v || '').toString().trim();
-    if (!code) continue;
-    const category = (ws[XLSX.utils.encode_cell({c:3,r})]?.v || '').toString().trim();
-    if (category) map.set(code, category);
+// prefix → supplier; categories by item code → Column D
+function buildMaps() {
+  // suppliers
+  const wbS = loadLocalXlsx('data/suppliers-codes.xlsx');
+  const wsS = wbS.Sheets[wbS.SheetNames[0]];
+  const rS  = XLSX.utils.decode_range(wsS['!ref']);
+  const prefixToSupplier = new Map();
+  for (let r = rS.s.r+1; r <= rS.e.r; r++) {
+    const codePref = (wsS[XLSX.utils.encode_cell({c:0,r})]?.v || '').toString().trim();
+    const supplier = (wsS[XLSX.utils.encode_cell({c:1,r})]?.v || '').toString().trim();
+    if (codePref && supplier) prefixToSupplier.set(codePref, supplier);
   }
-  return map;
+
+  // categories
+  const wbC = loadLocalXlsx('data/categories-descriptions.xlsx');
+  const wsC = wbC.Sheets[wbC.SheetNames[0]];
+  const rC  = XLSX.utils.decode_range(wsC['!ref']);
+  const codeToCategory = new Map();
+  for (let r = rC.s.r+1; r <= rC.e.r; r++) {
+    const code = (wsC[XLSX.utils.encode_cell({c:0,r})]?.v || '').toString().trim(); // Column A
+    const cat  = (wsC[XLSX.utils.encode_cell({c:3,r})]?.v || '').toString().trim(); // Column D
+    if (code) codeToCategory.set(code, cat || 'Uncategorized');
+  }
+  return { prefixToSupplier, codeToCategory };
 }
 
-function chooseSupplierCategory(code, supplierRules, categoriesMap) {
-  // Prefer explicit categories mapping by exact code (column D)
-  if (categoriesMap.has(code)) {
-    return { supplier: null, category: categoriesMap.get(code) };
+function supplierFor(code, prefixMap) {
+  for (const [pref,supp] of prefixMap.entries()) {
+    if (code.startsWith(pref)) return supp;
   }
-  // fallback: supplier prefix rules and optional fallback category
-  for (const r of supplierRules) {
-    if (code.startsWith(r.prefix)) {
-      return { supplier: r.supplier, category: r.fallbackCategory || 'Uncategorized' };
+  return 'Unknown';
+}
+
+function catFor(code, codeToCategory) {
+  return codeToCategory.get(code) || 'Uncategorized';
+}
+
+/* --- parse formats --- */
+
+function parseFormatA(buf) {
+  // INV-XXX-YYYY
+  const wb = XLSX.read(buf, { type:'buffer' });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const get = a => ws[a]?.v;
+
+  const client = (get('B3') || '').toString().trim();
+  const phone  = (get('B5') || '').toString().trim();
+  const invoiceTotal = Number(get('B8') || 0);
+
+  const items = [];
+  for (let r=12; r<2000; r++) {
+    const code = get(`A${r}`);
+    if (!code) break;
+    const qty  = Number(get(`C${r}`) || 0);
+    const unit = Number(get(`D${r}`) || 0);
+    const total= Number(get(`E${r}`) || qty*unit);
+    items.push({ code:String(code).trim(), qty, unit, total });
+  }
+
+  return { invoiceTotal, client, phone, items };
+}
+
+function parseFormatB(buf) {
+  // IPEC Invoice XXX-YYYY
+  const wb = XLSX.read(buf, { type:'buffer' });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const get = a => ws[a]?.v;
+
+  const client = (get('B3') || '').toString().trim();
+  const phone  = (get('B4') || '').toString().trim();
+
+  let invoiceTotal = 0;
+  for (let r = 11; r < 2000; r++) {
+    const label = (get(`D${r}`) || '').toString().toUpperCase();
+    if (label.includes('SUB-TOTAL USD')) {
+      invoiceTotal = Number(get(`E${r}`) || 0);
+      break;
     }
   }
-  return { supplier: 'Unknown', category: 'Uncategorized' };
-}
 
-// ---------- parsers ----------
-function parseA(wb) {
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  const get = a => ws[a]?.v;
-  const client = (get('B3') || '').toString().trim() || null;
-  const phone  = (get('B5') || '').toString().trim() || null;
-  const invoiceTotal = Number(get('B8') || 0);
   const items = [];
-  for (let r=12; r<10000; r++) {
-    const code = get(`A${r}`); if (!code) break;
-    const qty   = Number(get(`C${r}`) || 0);
-    const unit  = Number(get(`D${r}`) || 0);
-    const total = Number(get(`E${r}`) || (qty*unit));
-    items.push({ code: String(code).trim(), qty, unit, total });
+  for (let r=9; r<2000; r++) {
+    const code = get(`A${r}`);
+    if (!code) break;
+    const qty  = Number(get(`C${r}`) || 0);
+    const unit = Number(get(`D${r}`) || 0);
+    const total= Number(get(`E${r}`) || qty*unit);
+    items.push({ code:String(code).trim(), qty, unit, total });
   }
-  return { client, phone, invoiceTotal, items };
-}
-function parseB(wb) {
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  const get = a => ws[a]?.v;
-  const client = (get('B3') || '').toString().trim() || null;
-  const phone  = (get('B4') || '').toString().trim() || null;
-  let invoiceTotal = 0;
-  for (let r=11; r<10000; r++) {
-    const label = (get(`D${r}`) || '').toString().toUpperCase();
-    if (label.includes('SUB-TOTAL USD')) { invoiceTotal = Number(get(`E${r}`) || 0); break; }
-  }
-  const items = [];
-  for (let r=9; r<10000; r++) {
-    const code = get(`A${r}`); if (!code) break;
-    const qty   = Number(get(`C${r}`) || 0);
-    const unit  = Number(get(`D${r}`) || 0);
-    const total = Number(get(`E${r}`) || (qty*unit));
-    items.push({ code: String(code).trim(), qty, unit, total });
-  }
-  return { client, phone, invoiceTotal, items };
+
+  return { invoiceTotal, client, phone, items };
 }
 
-// ---------- aggregation helpers ----------
-function ensure(map, key, init) {
-  const cur = map.get(key);
-  if (cur) return cur;
-  map.set(key, init); return init;
+/* --- aggregate into dashboard --- */
+
+function emptyAgg() {
+  return {
+    totalSales: 0,
+    topSuppliers: new Map(),  // supplier → sales
+    topItems: new Map(),      // code → {qty, sales}
+    topClients: new Map(),    // phone|name → sales
+    byCategory: new Map(),    // category → Map(code → qty)
+  };
 }
 
-function applyInvoice(inv, agg, supplierRules, categoriesMap) {
+function addInvoice(agg, inv, maps) {
   agg.totalSales += inv.invoiceTotal || 0;
 
-  const cKey = (inv.phone || '').trim() || (inv.client || '').trim();
-  if (cKey) {
-    const c = agg.perClient.get(cKey) || { name: inv.client || '(No name)', phone: inv.phone || '(No phone)', sales: 0 };
-    c.sales += inv.invoiceTotal || 0; agg.perClient.set(cKey, c);
-  }
+  inv.items.forEach(it => {
+    const code = it.code;
+    const sales = it.total || 0;
+    const qty   = it.qty || 0;
 
-  for (const it of inv.items) {
-    const meta = chooseSupplierCategory(it.code, supplierRules, categoriesMap);
-    // per item
-    const item = ensure(agg.perItem, it.code, { code: it.code, qty: 0, sales: 0 });
-    item.qty += it.qty; item.sales += it.total;
+    // items overall
+    if (!agg.topItems.has(code)) agg.topItems.set(code, { code, qty:0, sales:0 });
+    const i = agg.topItems.get(code);
+    i.qty += qty; i.sales += sales;
 
-    // per supplier (only if we got supplier from rules)
-    const sup = meta.supplier || 'Unknown';
-    agg.perSupplier.set(sup, (agg.perSupplier.get(sup) || 0) + it.total);
+    // supplier
+    const supplier = supplierFor(code, maps.prefixToSupplier);
+    agg.topSuppliers.set(supplier, (agg.topSuppliers.get(supplier) || 0) + sales);
 
-    // per category
-    const cat = meta.category || 'Uncategorized';
-    const catMap = ensure(agg.perCat, cat, new Map());
-    catMap.set(it.code, (catMap.get(it.code) || 0) + it.qty);
-  }
+    // category → qty
+    const cat = catFor(code, maps.codeToCategory);
+    if (!agg.byCategory.has(cat)) agg.byCategory.set(cat, new Map());
+    const m = agg.byCategory.get(cat);
+    m.set(code, (m.get(code)||0) + qty);
+  });
+
+  // clients
+  const key = inv.phone || inv.client || 'Unknown';
+  agg.topClients.set(key, (agg.topClients.get(key)||0) + (inv.invoiceTotal || 0));
 }
 
 function finalizeAgg(agg) {
-  const topItemsOverall = [...agg.perItem.values()]
-    .sort((a,b)=>b.sales-a.sales).slice(0, 50);
-  const topSuppliers = [...agg.perSupplier.entries()]
-    .map(([supplier, sales])=>({ supplier, sales }))
-    .sort((a,b)=>b.sales-a.sales).slice(0, 50);
-  const topClients = [...agg.perClient.values()]
-    .sort((a,b)=>b.sales-a.sales).slice(0, 50);
-  const topByCategory = {};
-  for (const [cat, m] of agg.perCat.entries()) {
-    topByCategory[cat] = [...m.entries()].map(([code, qty])=>({ code, qty }))
-      .sort((a,b)=>b.qty-a.qty).slice(0, 50);
+  const obj = {
+    totalSales: Math.round(agg.totalSales),
+    topSuppliers: [...agg.topSuppliers.entries()]
+      .map(([supplier, sales]) => ({ supplier, sales:Math.round(sales) }))
+      .sort((a,b)=>b.sales-a.sales)
+      .slice(0, 20),
+
+    topItemsOverall: [...agg.topItems.values()]
+      .sort((a,b)=>b.sales-a.sales)
+      .slice(0, 100),
+
+    topClients: [...agg.topClients.entries()]
+      .map(([id, sales]) => ({ phone:id.match(/^\+?\d/) ? id : null, name: id.match(/^\+?\d/) ? null : id, sales:Math.round(sales) }))
+      .sort((a,b)=>b.sales-a.sales)
+      .slice(0, 50),
+
+    topByCategory: {},
+  };
+
+  for (const [cat, map] of agg.byCategory.entries()) {
+    obj.topByCategory[cat] = [...map.entries()]
+      .map(([code, qty]) => ({ code, qty }))
+      .sort((a,b)=>b.qty-a.qty)
+      .slice(0, 20);
   }
-  return { totalSales: agg.totalSales, topItemsOverall, topSuppliers, topClients, topByCategory };
+  return obj;
 }
 
 export const handler = async () => {
-  try {
-    const store = getStore('ipec-dash');
-    let progress = await store.get('progress.json', { type: 'json' });
+  const store = getStore('ipec-cache');
 
-    // init progress (first call)
-    if (!progress) {
-      const auth = authClient();
-      const drive = google.drive({ version: 'v3', auth });
-      const [filesA, filesB] = await Promise.all([
-        listFolderFiles(drive, folderA),
-        listFolderFiles(drive, folderB),
-      ]);
-      const invA = filesA.filter(f => /^INV-\d{3,}-\d{4,}$/.test(f.name)).map(f=>({ id:f.id, kind:'A' }));
-      const invB = filesB.filter(f => /^IPEC Invoice \d{3,}-\d{4,}/.test(f.name)).map(f=>({ id:f.id, kind:'B' }));
-      const queue = [...invA, ...invB];
-
-      progress = {
-        queue,
-        index: 0,
-        total: queue.length,
-        done: false
-      };
-
-      // create empty aggregation maps (serialized as arrays of [key,val])
-      const emptyAgg = {
-        totalSales: 0,
-        perItem: [],       // [code, {code,qty,sales}]
-        perSupplier: [],   // [name, sales]
-        perCat: [],        // [cat, [code,qty]]
-        perClient: []      // [key, {name,phone,sales}]
-      };
-      await store.setJSON('agg-work.json', emptyAgg);
-      await store.setJSON('progress.json', progress);
-    }
-
-    // load working agg
-    const work = await store.get('agg-work.json', { type: 'json' });
-    const agg = {
-      totalSales: work.totalSales || 0,
-      perItem: new Map(work.perItem || []),
-      perSupplier: new Map(work.perSupplier || []),
-      perCat: new Map((work.perCat || []).map(([cat, arr]) => [cat, new Map(arr)])),
-      perClient: new Map(work.perClient || [])
+  // load or init state
+  let state = await store.get('state.json', { type:'json' });
+  if (!state) {
+    state = {
+      startedAt: Date.now(),
+      done: false,
+      cursor: { phase: 'A', tokenA: null, tokenB: null, indexInPage: 0 },
+      processed: new Set(), // store as array in blob
+      agg: null,
+      data: null
     };
+  }
+  // revive set
+  if (Array.isArray(state.processed)) state.processed = new Set(state.processed);
+  if (!state.agg) state.agg = emptyAgg();
 
-    // load Excel helpers (from repo)
-    const [supBuf, catBuf] = await Promise.all([
-      fs.readFile(SUPPLIERS_XLSX),
-      fs.readFile(CATEGORIES_XLSX)
-    ]);
-    const supplierRules = loadSupplierRules(supBuf);
-    const categoriesMap = loadCategoriesMap(catBuf);
+  const authClient = auth();
+  const d = drive(authClient);
+  const maps = buildMaps();
 
-    // auth for this batch
-    const drive = google.drive({ version: 'v3', auth: authClient() });
+  let files = [];
+  let nextToken = null;
 
-    const start = progress.index;
-    const end = Math.min(progress.index + BATCH_SIZE, progress.total);
-    let processed = 0;
+  const phase = state.cursor.phase; // 'A' or 'B'
+  if (phase === 'A') {
+    ({ files, nextToken } = await listFiles(d, FOLDER_A, state.cursor.tokenA));
+  } else {
+    ({ files, nextToken } = await listFiles(d, FOLDER_B, state.cursor.tokenB));
+  }
 
-    for (let i=start; i<end; i++) {
-      const { id, kind } = progress.queue[i];
-      const buf = await downloadFile(drive, id);
-      const wb = XLSX.read(buf, { type:'buffer' });
-      const inv = (kind === 'A') ? parseA(wb) : parseB(wb);
-      applyInvoice(inv, agg, supplierRules, categoriesMap);
-      processed++;
+  let processedNow = 0;
+
+  for (let i = state.cursor.indexInPage; i < files.length; i++) {
+    const f = files[i];
+    if (state.processed.has(f.id)) continue;
+
+    // filter by file name patterns
+    const name = f.name || '';
+    const isA = /^INV-\d{3,}-\d{4,}$/.test(name);
+    const isB = /^IPEC Invoice \d{3,}-\d{4,}/.test(name);
+    if ((phase === 'A' && !isA) || (phase === 'B' && !isB)) continue;
+
+    const buf = await downloadBuffer(d, f.id);
+    const inv = phase === 'A' ? parseFormatA(buf) : parseFormatB(buf);
+    addInvoice(state.agg, inv, maps);
+
+    state.processed.add(f.id);
+    processedNow++;
+    if (processedNow >= BATCH_FILES) {
+      state.cursor.indexInPage = i + 1;
+      await persist();
+      return done(false, processedNow);
     }
+  }
 
-    progress.index = end;
-    progress.done = progress.index >= progress.total;
+  // page finished
+  if (nextToken) {
+    if (phase === 'A') state.cursor.tokenA = nextToken;
+    else state.cursor.tokenB = nextToken;
+    state.cursor.indexInPage = 0;
+    await persist();
+    return done(false, processedNow);
+  }
 
-    // save running agg back to blobs (serialize maps)
-    const toStore = {
-      totalSales: agg.totalSales,
-      perItem: [...agg.perItem.entries()],
-      perSupplier: [...agg.perSupplier.entries()],
-      perCat: [...[...agg.perCat.entries()].map(([cat, m]) => [cat, [...m.entries()]])],
-      perClient: [...agg.perClient.entries()]
-    };
-    await store.setJSON('agg-work.json', toStore);
-    await store.setJSON('progress.json', progress);
+  // phase finished, move to next or finalize
+  if (phase === 'A') {
+    state.cursor.phase = 'B';
+    state.cursor.indexInPage = 0;
+    await persist();
+    return done(false, processedNow);
+  }
 
-    // if finished, compute top arrays and store final agg
-    if (progress.done) {
-      const final = finalizeAgg(agg);
-      await store.setJSON('agg.json', { generatedAt: Date.now(), ...final });
-    }
+  // All finished → finalize
+  state.data = finalizeAgg(state.agg);
+  state.done = true;
+  await persist();
+  return done(true, processedNow);
 
+  async function persist() {
+    // sets are not JSON-able
+    const save = { ...state, processed:[...state.processed] };
+    await store.setJSON('state.json', save);
+  }
+
+  function done(isDone, count) {
     return {
       statusCode: 200,
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        ok: true,
-        processed,
-        index: progress.index,
-        total: progress.total,
-        remaining: progress.total - progress.index,
-        done: progress.done
-      })
+      headers: { 'content-type':'application/json', 'cache-control':'no-store' },
+      body: JSON.stringify({ done:isDone, processed:count })
     };
-  } catch (e) {
-    return { statusCode: 500, body: JSON.stringify({ error: e.message }) };
   }
 };

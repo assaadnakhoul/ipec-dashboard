@@ -1,253 +1,279 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>IPEC Sales Dashboard</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8" />
+  <title>IPEC Sales Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- keep your theme -->
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    /* Only for new bits (category chips + sort buttons) – minimal, matches your theme */
+    .chips { display:flex; flex-wrap:wrap; gap:.5rem; margin:.5rem 0 1rem; }
+    .chip {
+      padding:.3rem .7rem; border-radius:999px; border:1px solid rgba(255,255,255,.12);
+      background:rgba(255,255,255,.06); color:#cfe2ff; cursor:pointer; font-size:.85rem;
+      transition:background .15s ease, color .15s ease, border-color .15s ease;
+    }
+    .chip:hover { background:rgba(255,255,255,.1) }
+    .chip.active { background:#0b84ff; border-color:#0b84ff; color:#fff; }
+
+    .section-header { display:flex; align-items:center; justify-content:space-between; gap:1rem; }
+    .sort-toggle { display:flex; align-items:center; gap:.4rem; }
+    .btn-sort {
+      padding:.35rem .6rem; border-radius:.4rem; border:1px solid rgba(255,255,255,.12);
+      background:rgba(255,255,255,.06); color:#cfe2ff; cursor:pointer; font-size:.85rem;
+    }
+    .btn-sort.active { background:#0b84ff; border-color:#0b84ff; color:#fff; }
+  </style>
 </head>
 <body>
-<header>
-  <h1>IPEC Sales Dashboard</h1>
-  <div id="categoriesBar" class="categories-bar"></div>
-  <div class="top-bar">
-    <div id="totalSales" class="total-sales">Total Sales: $0</div>
-    <button id="btnRefresh" class="btn">Refresh</button>
-  </div>
-</header>
-
-<main>
-  <section>
-    <h2>Top Suppliers (Sales) <span id="suppliersCount"></span></h2>
-    <ul id="listSuppliers"></ul>
-  </section>
-
-  <section>
-    <div class="section-header">
-      <h2>Top Selling Items <span id="itemsCount"></span></h2>
-      <div class="sort-toggle">
-        Sort by:
-        <button data-sort="qty" class="btn-sort active">Units</button>
-        <button data-sort="value" class="btn-sort">Value</button>
+  <div class="wrap">
+    <!-- top bar -->
+    <header class="page-header">
+      <h1>IPEC Sales Dashboard</h1>
+      <div class="actions">
+        <div id="totalSales" class="pill">Total Sales: $0</div>
+        <button id="btnRefresh" class="btn">Refresh</button>
       </div>
+    </header>
+
+    <!-- NEW: categories chips -->
+    <div id="categoriesBar" class="chips"></div>
+
+    <!-- grid -->
+    <div class="grid">
+      <!-- Top Suppliers -->
+      <section class="card">
+        <div class="card-title">
+          <h2>Top Suppliers (Sales)</h2>
+          <span id="suppliersCount" class="muted"></span>
+        </div>
+        <ul id="listSuppliers" class="list"></ul>
+      </section>
+
+      <!-- Top Items with sort toggle -->
+      <section class="card">
+        <div class="card-title section-header">
+          <div>
+            <h2>Top Selling Items</h2>
+            <span id="itemsCount" class="muted"></span>
+          </div>
+          <div class="sort-toggle">
+            <span class="muted">Sort by:</span>
+            <button class="btn-sort active" data-sort="qty">Units</button>
+            <button class="btn-sort" data-sort="value">Value</button>
+          </div>
+        </div>
+        <ul id="listItems" class="list"></ul>
+      </section>
+
+      <!-- Top Clients -->
+      <section class="card">
+        <div class="card-title">
+          <h2>Top Clients</h2>
+          <span id="clientsCount" class="muted"></span>
+        </div>
+        <ul id="listClients" class="list"></ul>
+      </section>
+
+      <!-- Top by Category -->
+      <section class="card">
+        <div class="card-title">
+          <h2>Top 10 Unit Sales per Category</h2>
+          <span id="catsCount" class="muted"></span>
+        </div>
+        <ul id="listCats" class="list"></ul>
+      </section>
     </div>
-    <ul id="listItems"></ul>
-  </section>
 
-  <section>
-    <h2>Top Clients <span id="clientsCount"></span></h2>
-    <ul id="listClients"></ul>
-  </section>
+    <p class="muted footnote">
+      Data comes from <code>/public/agg.json</code> or the server cache (Netlify Blobs).
+    </p>
+  </div>
 
-  <section>
-    <h2>Top 10 Unit Sales per Category <span id="catsCount"></span></h2>
-    <ul id="listCats"></ul>
-  </section>
-</main>
+  <script>
+    // ---------- helpers ----------
+    const $  = s => document.querySelector(s);
+    const $$ = s => document.querySelectorAll(s);
+    const money = n => (Number(n)||0).toLocaleString(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0});
+    const num   = n => (Number(n)||0).toLocaleString();
 
-<footer>
-  Data comes from <code>/public/agg.json</code> or the server cache.
-</footer>
+    function renderListCollapsible(ul, rows, valueKey, fmt=(v)=>v){
+      ul.innerHTML = '';
+      if(!rows || !rows.length){ ul.innerHTML = '<li class="row empty">No data found.</li>'; return; }
+      const max = Math.max(...rows.map(r => r[valueKey]||0)) || 1;
 
-<script>
-const $ = s => document.querySelector(s);
-const $$ = s => document.querySelectorAll(s);
-const money = n => (Number(n)||0).toLocaleString(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0});
-const num   = n => (Number(n)||0).toLocaleString();
+      function makeRow(r){
+        const v = r[valueKey]||0;
+        const pct = Math.max(3, Math.round((v/max)*100));
+        const name = r.name || r.label || r.code || r.supplier || '—';
+        const sub  = r.sub || '';
+        const li = document.createElement('li');
+        li.className = 'row';
+        li.innerHTML = `
+          <div class="top">
+            <div>${name}${sub?` <span class="subtle">• ${sub}</span>`:''}</div>
+            <div>${fmt(v)}</div>
+          </div>
+          <div class="bar"><i style="width:${pct}%"></i></div>
+        `;
+        return li;
+      }
 
-// Collapsible list renderer
-function renderListCollapsible(ul, rows, valueKey, fmt=(v)=>v){
-  ul.innerHTML = '';
-  if(!rows || !rows.length){ ul.innerHTML = '<li class="row empty">No data found.</li>'; return; }
-  const max = Math.max(...rows.map(r => r[valueKey]||0)) || 1;
+      const head = rows.slice(0, 5).map(makeRow);
+      head.forEach(li => ul.appendChild(li));
 
-  function makeRow(r){
-    const v = r[valueKey]||0;
-    const pct = Math.max(3, Math.round((v/max)*100));
-    const name = r.name || r.label || r.code || r.supplier || '—';
-    const sub  = r.sub || '';
-    const li = document.createElement('li');
-    li.className = 'row';
-    li.innerHTML = `
-      <div class="top">
-        <div>${name}${sub?` <span class="subtle">• ${sub}</span>`:''}</div>
-        <div>${fmt(v)}</div>
-      </div>
-      <div class="bar"><i style="width:${pct}%"></i></div>
-    `;
-    return li;
-  }
+      if(rows.length > 5){
+        const more = rows.slice(5, 10).map(makeRow);
+        const moreBox = document.createElement('div');
+        moreBox.style.display = 'none';
+        more.forEach(li => moreBox.appendChild(li));
+        ul.appendChild(moreBox);
 
-  const head = rows.slice(0, 5).map(makeRow);
-  head.forEach(li => ul.appendChild(li));
+        const btn = document.createElement('button');
+        btn.className = 'btn';
+        btn.style.marginTop = '8px';
+        btn.textContent = 'Show more';
+        let open = false;
+        btn.onclick = () => {
+          open = !open;
+          moreBox.style.display = open ? '' : 'none';
+          btn.textContent = open ? 'Show less' : 'Show more';
+        };
+        const holder = document.createElement('div'); holder.appendChild(btn);
+        ul.appendChild(holder);
+      }
+    }
 
-  if(rows.length > 5){
-    const more = rows.slice(5, 10).map(makeRow);
-    const moreBox = document.createElement('div');
-    moreBox.style.display = 'none';
-    more.forEach(li => moreBox.appendChild(li));
-    ul.appendChild(moreBox);
+    // ---------- data fetchers (Netlify) ----------
+    async function getAggFromFunction(){
+      const res = await fetch('/.netlify/functions/get-agg', { cache:'no-store' });
+      if(!res.ok) throw new Error('get-agg failed');
+      return res.json();
+    }
+    async function warmOnce(){
+      const res = await fetch('/.netlify/functions/warm-cache', { cache:'no-store' });
+      if(!res.ok) throw new Error('warm-cache failed');
+      return res.json();
+    }
+    async function loadOrWarm(){
+      let j = await getAggFromFunction();
+      if(j.ready) return j.data;
 
-    const btn = document.createElement('button');
-    btn.className = 'btn';
-    btn.style.marginTop = '8px';
-    btn.textContent = 'Show more';
-    let open = false;
-    btn.onclick = () => {
-      open = !open;
-      moreBox.style.display = open ? '' : 'none';
-      btn.textContent = open ? 'Show less' : 'Show more';
-    };
-    const holder = document.createElement('div'); holder.appendChild(btn);
-    ul.appendChild(holder);
-  }
-}
+      // do a few batches on each refresh click
+      for(let i=0;i<5;i++){
+        const w = await warmOnce();
+        if(w.done) break;
+      }
+      j = await getAggFromFunction();
+      if(j.ready) return j.data;
 
-// Fetch from functions
-async function getAggFromFunction(){
-  const res = await fetch('/.netlify/functions/get-agg', { cache:'no-store' });
-  if(!res.ok) throw new Error('get-agg failed');
-  return res.json();
-}
-async function warmOnce(){
-  const res = await fetch('/.netlify/functions/warm-cache', { cache:'no-store' });
-  if(!res.ok) throw new Error('warm-cache failed');
-  return res.json();
-}
-async function loadOrWarm(){
-  let j = await getAggFromFunction();
-  if(j.ready) return j.data;
-  for(let i=0;i<5;i++){
-    const w = await warmOnce();
-    if(w.done) break;
-  }
-  j = await getAggFromFunction();
-  if(j.ready) return j.data;
-  try {
-    const f = await fetch('/agg.json', { cache:'no-store' });
-    if(f.ok) return (await f.json());
-  } catch {}
-  return { totalSales:0, topSuppliers:[], topItemsOverall:[], topClients:[], topByCategory:{} };
-}
+      // final fallback to static file (if you left it)
+      try {
+        const f = await fetch('/agg.json', { cache:'no-store' });
+        if(f.ok) return await f.json();
+      } catch {}
+      return { totalSales:0, topSuppliers:[], topItemsOverall:[], topClients:[], topByCategory:{} };
+    }
 
-let allData = null;
-let currentCategory = "All";
-let currentSort = "qty";
+    // ---------- state ----------
+    let allData = null;
+    let currentCategory = 'All';
+    let currentSort = 'qty';
 
-function normalize(data){
-  const suppliers = (data.topSuppliers||[]).map(d=>({ name:d.supplier, total:d.sales }));
-  const items     = (data.topItemsOverall||[]).map(d=>({
-    name:d.code, units:d.qty, total:d.sales, category: findCategoryForItem(d.code, data.topByCategory)
-  }));
-  const clients   = (data.topClients||[]).map(d=>({ name:d.name || d.phone || '(Unknown)', total:d.sales }));
-  const cats = [];
-  Object.entries(data.topByCategory||{}).forEach(([cat, arr])=>{
-    cats.push(...arr.map(x=>({ name: `${cat} • ${x.code}`, units:x.qty })));
-  });
-  return { suppliers, items, clients, cats, totalSales: data.totalSales||0, categories: Object.keys(data.topByCategory||{}) };
-}
+    // turn server data into UI arrays we can render
+    function normalize(data){
+      const suppliers = (data.topSuppliers||[]).map(d=>({ name:d.supplier, total:d.sales }));
+      const items     = (data.topItemsOverall||[]).map(d=>({
+        name:d.code,
+        units:d.qty,
+        total:d.sales,
+        category: findCategoryForItem(d.code, data.topByCategory)
+      }));
+      const clients   = (data.topClients||[]).map(d=>({ name:d.name || d.phone || '(Unknown)', total:d.sales }));
+      const cats = [];
+      Object.entries(data.topByCategory||{}).forEach(([cat, arr])=>{
+        cats.push(...arr.map(x=>({ name: `${cat} • ${x.code}`, units:x.qty })));
+      });
+      return {
+        suppliers, items, clients, cats,
+        totalSales: data.totalSales||0,
+        categories: Object.keys(data.topByCategory||{})
+      };
+    }
 
-function findCategoryForItem(code, catsObj){
-  for(const cat in catsObj){
-    if(catsObj[cat].some(x=>x.code===code)) return cat;
-  }
-  return "Uncategorized";
-}
+    // find the first category that lists this code
+    function findCategoryForItem(code, catsObj){
+      for(const cat in catsObj){
+        if(catsObj[cat].some(x=>x.code===code)) return cat;
+      }
+      return 'Uncategorized';
+    }
 
-function renderCategoriesBar(categories){
-  const bar = $('#categoriesBar');
-  bar.innerHTML = '';
-  const cats = ["All", ...categories];
-  cats.forEach(cat=>{
-    const btn = document.createElement('button');
-    btn.textContent = cat;
-    btn.className = 'cat-btn' + (cat===currentCategory ? ' active' : '');
-    btn.onclick = ()=>{
-      currentCategory = cat;
+    // ---------- UI builders ----------
+    function renderCategoriesBar(categories){
+      const bar = $('#categoriesBar');
+      bar.innerHTML = '';
+      const cats = ['All', ...categories];
+      cats.forEach(cat=>{
+        const b = document.createElement('button');
+        b.className = 'chip' + (cat===currentCategory ? ' active':'');
+        b.textContent = cat;
+        b.onclick = () => {
+          currentCategory = cat;
+          $$('#categoriesBar .chip').forEach(x=>x.classList.remove('active'));
+          b.classList.add('active');
+          renderFilteredItems();
+        };
+        bar.appendChild(b);
+      });
+    }
+
+    function renderFilteredItems(){
+      let filtered = allData.items;
+      if(currentCategory !== 'All'){
+        filtered = filtered.filter(i => i.category === currentCategory);
+      }
+      if(currentSort==='qty'){
+        filtered = filtered.sort((a,b)=>b.units-a.units);
+        renderListCollapsible($('#listItems'), filtered, 'units', v=>`${num(v)} pcs`);
+      } else {
+        filtered = filtered.sort((a,b)=>b.total-a.total);
+        renderListCollapsible($('#listItems'), filtered, 'total', money);
+      }
+    }
+
+    async function render(){
+      $('#totalSales').textContent = 'Loading…';
+      const raw = await loadOrWarm();
+      allData = normalize(raw);
+
+      $('#totalSales').textContent     = `Total Sales: ${money(allData.totalSales)}`;
+      $('#suppliersCount').textContent = `${allData.suppliers.length} suppliers`;
+      $('#itemsCount').textContent     = `${allData.items.length} items ranked`;
+      $('#clientsCount').textContent   = `${allData.clients.length} clients`;
+      $('#catsCount').textContent      = `${allData.cats.length} category rows`;
+
+      renderListCollapsible($('#listSuppliers'), allData.suppliers, 'total', money);
+      renderListCollapsible($('#listClients'),   allData.clients,   'total', money);
+      renderListCollapsible($('#listCats'),      allData.cats,      'units', v=>`${num(v)} pcs`);
+
+      renderCategoriesBar(allData.categories);
       renderFilteredItems();
-      $$('.cat-btn').forEach(b=>b.classList.remove('active'));
-      btn.classList.add('active');
-    };
-    bar.appendChild(btn);
-  });
-}
+    }
 
-function renderFilteredItems(){
-  let filtered = allData.items;
-  if(currentCategory !== "All"){
-    filtered = filtered.filter(i=>i.category===currentCategory);
-  }
-  if(currentSort==="qty"){
-    filtered = filtered.sort((a,b)=>b.units-a.units);
-    renderListCollapsible($('#listItems'), filtered, 'units', v=>`${num(v)} pcs`);
-  } else {
-    filtered = filtered.sort((a,b)=>b.total-a.total);
-    renderListCollapsible($('#listItems'), filtered, 'total', money);
-  }
-}
+    // ---------- events ----------
+    $('#btnRefresh').addEventListener('click', render);
+    $$('.btn-sort').forEach(btn=>{
+      btn.onclick = ()=>{
+        currentSort = btn.dataset.sort;
+        $$('.btn-sort').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        renderFilteredItems();
+      };
+    });
 
-async function render(){
-  $('#totalSales').textContent = 'Loading…';
-  const raw = await loadOrWarm();
-  allData = normalize(raw);
-
-  $('#totalSales').textContent    = `Total Sales: ${money(allData.totalSales)}`;
-  $('#suppliersCount').textContent= `${allData.suppliers.length} suppliers`;
-  $('#itemsCount').textContent    = `${allData.items.length} items ranked`;
-  $('#clientsCount').textContent  = `${allData.clients.length} clients`;
-  $('#catsCount').textContent     = `${allData.cats.length} category rows`;
-
-  renderListCollapsible($('#listSuppliers'), allData.suppliers, 'total', money);
-  renderListCollapsible($('#listClients'),   allData.clients,   'total', money);
-  renderListCollapsible($('#listCats'),      allData.cats,      'units', v=>`${num(v)} pcs`);
-
-  renderCategoriesBar(allData.categories);
-  renderFilteredItems();
-}
-
-$('#btnRefresh').addEventListener('click', render);
-$$('.btn-sort').forEach(btn=>{
-  btn.onclick = ()=>{
-    currentSort = btn.dataset.sort;
-    $$('.btn-sort').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    renderFilteredItems();
-  };
-});
-
-render();
-</script>
-
-<style>
-/* Extra styling for category buttons */
-.categories-bar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 8px 0 16px;
-}
-.cat-btn {
-  background: #222;
-  border: 1px solid #444;
-  padding: 4px 10px;
-  border-radius: 12px;
-  cursor: pointer;
-  font-size: 0.85em;
-  color: #ccc;
-}
-.cat-btn.active {
-  background: #08f;
-  color: #fff;
-}
-.sort-toggle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.btn-sort.active {
-  background: #08f;
-  color: #fff;
-}
-</style>
+    render();
+  </script>
 </body>
 </html>
