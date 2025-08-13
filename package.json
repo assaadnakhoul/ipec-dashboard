@@ -7,7 +7,7 @@
     "postinstall": "echo \"postinstall for Netlify\""
   },
   "dependencies": {
-    "@netlify/blobs": "^6.4.0",
+    "@netlify/blobs": "^7.1.0",
     "google-auth-library": "^9.14.1",
     "googleapis": "^144.0.0",
     "xlsx": "^0.18.5"
