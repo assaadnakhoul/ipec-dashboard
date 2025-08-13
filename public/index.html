@@ -1,160 +1,253 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>IPEC Sales Dashboard</title>
-
-  <!-- Fonts (optional, looks nicer) -->
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
-
-  <!-- Our styles -->
-  <link rel="stylesheet" href="/styles.css">
+<meta charset="UTF-8">
+<title>IPEC Sales Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <header id="appHeader" class="topbar">
-    <div class="brand">
-      <h1>IPEC Sales Dashboard</h1>
+<header>
+  <h1>IPEC Sales Dashboard</h1>
+  <div id="categoriesBar" class="categories-bar"></div>
+  <div class="top-bar">
+    <div id="totalSales" class="total-sales">Total Sales: $0</div>
+    <button id="btnRefresh" class="btn">Refresh</button>
+  </div>
+</header>
+
+<main>
+  <section>
+    <h2>Top Suppliers (Sales) <span id="suppliersCount"></span></h2>
+    <ul id="listSuppliers"></ul>
+  </section>
+
+  <section>
+    <div class="section-header">
+      <h2>Top Selling Items <span id="itemsCount"></span></h2>
+      <div class="sort-toggle">
+        Sort by:
+        <button data-sort="qty" class="btn-sort active">Units</button>
+        <button data-sort="value" class="btn-sort">Value</button>
+      </div>
     </div>
-    <div class="actions">
-      <div id="totalSales" class="pill">Total Sales: $0</div>
-      <button id="btnRefresh" class="btn">Refresh</button>
-    </div>
-  </header>
+    <ul id="listItems"></ul>
+  </section>
 
-  <main class="container">
-    <section class="grid">
-      <article class="card">
-        <div class="card-header">
-          <h2>Top Suppliers (Sales)</h2>
-          <div class="subtle" id="suppliersCount">–</div>
-        </div>
-        <ul id="listSuppliers" class="list"></ul>
-      </article>
+  <section>
+    <h2>Top Clients <span id="clientsCount"></span></h2>
+    <ul id="listClients"></ul>
+  </section>
 
-      <article class="card">
-        <div class="card-header">
-          <h2>Top Selling Items (Overall)</h2>
-          <div class="subtle" id="itemsCount">–</div>
-        </div>
-        <ul id="listItems" class="list"></ul>
-      </article>
-    </section>
+  <section>
+    <h2>Top 10 Unit Sales per Category <span id="catsCount"></span></h2>
+    <ul id="listCats"></ul>
+  </section>
+</main>
 
-    <section class="grid">
-      <article class="card">
-        <div class="card-header">
-          <h2>Top Clients</h2>
-          <div class="subtle" id="clientsCount">–</div>
-        </div>
-        <ul id="listClients" class="list"></ul>
-      </article>
+<footer>
+  Data comes from <code>/public/agg.json</code> or the server cache.
+</footer>
 
-      <article class="card">
-        <div class="card-header">
-          <h2>Top 10 Unit Sales per Category</h2>
-          <div class="subtle" id="catsCount">–</div>
-        </div>
-        <ul id="listCats" class="list"></ul>
-      </article>
-    </section>
+<script>
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+const money = n => (Number(n)||0).toLocaleString(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0});
+const num   = n => (Number(n)||0).toLocaleString();
 
-    <p class="footnote">
-      Data comes from <code>/public/agg.json</code> created at build. If it’s missing, the lists will show “No data found.”
-    </p>
-  </main>
+// Collapsible list renderer
+function renderListCollapsible(ul, rows, valueKey, fmt=(v)=>v){
+  ul.innerHTML = '';
+  if(!rows || !rows.length){ ul.innerHTML = '<li class="row empty">No data found.</li>'; return; }
+  const max = Math.max(...rows.map(r => r[valueKey]||0)) || 1;
 
-  <script>
-    // ------- tiny helpers -------
-    const $ = s => document.querySelector(s);
-    const money = n => (Number(n)||0).toLocaleString(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0});
-    const num   = n => (Number(n)||0).toLocaleString();
+  function makeRow(r){
+    const v = r[valueKey]||0;
+    const pct = Math.max(3, Math.round((v/max)*100));
+    const name = r.name || r.label || r.code || r.supplier || '—';
+    const sub  = r.sub || '';
+    const li = document.createElement('li');
+    li.className = 'row';
+    li.innerHTML = `
+      <div class="top">
+        <div>${name}${sub?` <span class="subtle">• ${sub}</span>`:''}</div>
+        <div>${fmt(v)}</div>
+      </div>
+      <div class="bar"><i style="width:${pct}%"></i></div>
+    `;
+    return li;
+  }
 
-    function renderList(ul, rows, valueKey, format=(v)=>v, topN=10){
-      ul.innerHTML = '';
-      if(!rows || !rows.length){
-        ul.innerHTML = '<li class="row empty">No data found.</li>';
-        return;
-      }
-      const max = Math.max(...rows.map(r => r[valueKey]||0)) || 1;
-      rows.slice(0, topN).forEach(r=>{
-        const v = r[valueKey]||0;
-        const pct = Math.max(3, Math.round((v/max)*100));
-        const name = r.name || r.label || r.code || r.supplier || '—';
-        const sub  = r.sub || '';
-        const li = document.createElement('li');
-        li.className = 'row';
-        li.innerHTML = `
-          <div class="top">
-            <div>${name}${sub?` <span class="subtle">• ${sub}</span>`:''}</div>
-            <div>${format(v)}</div>
-          </div>
-          <div class="bar"><i style="width:${pct}%"></i></div>
-        `;
-        ul.appendChild(li);
-      });
-    }
+  const head = rows.slice(0, 5).map(makeRow);
+  head.forEach(li => ul.appendChild(li));
 
-    async function loadAgg(){
-      const u = new URL('/agg.json', location.href);
-      u.searchParams.set('_', Date.now());            // cache-bust
-      const res = await fetch(u, { cache:'no-store' });
-      if(!res.ok) throw new Error('agg.json not found');
-      const text = await res.text();
-      if(!text.trim()) return {};
-      try { return JSON.parse(text); } catch { return {}; }
-    }
+  if(rows.length > 5){
+    const more = rows.slice(5, 10).map(makeRow);
+    const moreBox = document.createElement('div');
+    moreBox.style.display = 'none';
+    more.forEach(li => moreBox.appendChild(li));
+    ul.appendChild(moreBox);
 
-    function normalize(data){
-      // expects build output shape:
-      // { totalSales, topSuppliers:[{supplier,sales}],
-      //   topItemsOverall:[{code,qty,sales}], topClients:[{name,phone,sales}],
-      //   topByCategory:{ cat:[{code,qty}] } }
-      const suppliers = (data.topSuppliers||[]).map(d=>({ name:d.supplier, total:d.sales }));
-      const items     = (data.topItemsOverall||[]).map(d=>({ name:d.code, units:d.qty, total:d.sales }));
-      const clients   = (data.topClients||[]).map(d=>({ name:d.name || d.phone || '(Unknown)', total:d.sales }));
-      const cats = [];
-      Object.entries(data.topByCategory||{}).forEach(([cat, arr])=>{
-        cats.push(...arr.map(x=>({ name: `${cat} • ${x.code}`, units:x.qty })));
-      });
-      return { suppliers, items, clients, cats, totalSales: data.totalSales||0 };
-    }
+    const btn = document.createElement('button');
+    btn.className = 'btn';
+    btn.style.marginTop = '8px';
+    btn.textContent = 'Show more';
+    let open = false;
+    btn.onclick = () => {
+      open = !open;
+      moreBox.style.display = open ? '' : 'none';
+      btn.textContent = open ? 'Show less' : 'Show more';
+    };
+    const holder = document.createElement('div'); holder.appendChild(btn);
+    ul.appendChild(holder);
+  }
+}
 
-    async function render(){
-      $('#totalSales').textContent = 'Loading…';
-      let raw = {};
-      try { raw = await loadAgg(); } catch(e){ console.warn(e); }
-      const data = normalize(raw);
+// Fetch from functions
+async function getAggFromFunction(){
+  const res = await fetch('/.netlify/functions/get-agg', { cache:'no-store' });
+  if(!res.ok) throw new Error('get-agg failed');
+  return res.json();
+}
+async function warmOnce(){
+  const res = await fetch('/.netlify/functions/warm-cache', { cache:'no-store' });
+  if(!res.ok) throw new Error('warm-cache failed');
+  return res.json();
+}
+async function loadOrWarm(){
+  let j = await getAggFromFunction();
+  if(j.ready) return j.data;
+  for(let i=0;i<5;i++){
+    const w = await warmOnce();
+    if(w.done) break;
+  }
+  j = await getAggFromFunction();
+  if(j.ready) return j.data;
+  try {
+    const f = await fetch('/agg.json', { cache:'no-store' });
+    if(f.ok) return (await f.json());
+  } catch {}
+  return { totalSales:0, topSuppliers:[], topItemsOverall:[], topClients:[], topByCategory:{} };
+}
 
-      // header
-      $('#totalSales').textContent    = `Total Sales: ${money(data.totalSales)}`;
-      $('#suppliersCount').textContent= `${data.suppliers.length} suppliers`;
-      $('#itemsCount').textContent    = `${data.items.length} items ranked`;
-      $('#clientsCount').textContent  = `${data.clients.length} clients`;
-      $('#catsCount').textContent     = `${data.cats.length} category rows`;
+let allData = null;
+let currentCategory = "All";
+let currentSort = "qty";
 
-      // lists
-      renderList($('#listSuppliers'), data.suppliers, 'total', money, 10);
-      renderList($('#listItems'),     data.items,     'units', v=>`${num(v)} pcs`, 10);
-      renderList($('#listClients'),   data.clients,   'total', money, 10);
-      renderList($('#listCats'),      data.cats,      'units', v=>`${num(v)} pcs`, 10);
-    }
+function normalize(data){
+  const suppliers = (data.topSuppliers||[]).map(d=>({ name:d.supplier, total:d.sales }));
+  const items     = (data.topItemsOverall||[]).map(d=>({
+    name:d.code, units:d.qty, total:d.sales, category: findCategoryForItem(d.code, data.topByCategory)
+  }));
+  const clients   = (data.topClients||[]).map(d=>({ name:d.name || d.phone || '(Unknown)', total:d.sales }));
+  const cats = [];
+  Object.entries(data.topByCategory||{}).forEach(([cat, arr])=>{
+    cats.push(...arr.map(x=>({ name: `${cat} • ${x.code}`, units:x.qty })));
+  });
+  return { suppliers, items, clients, cats, totalSales: data.totalSales||0, categories: Object.keys(data.topByCategory||{}) };
+}
 
-    $('#btnRefresh').addEventListener('click', render);
-    render();
+function findCategoryForItem(code, catsObj){
+  for(const cat in catsObj){
+    if(catsObj[cat].some(x=>x.code===code)) return cat;
+  }
+  return "Uncategorized";
+}
 
-    // sticky header: quick show on scroll up, hide on scroll down
-    (function(){
-      const h = $('#appHeader'); if(!h) return;
-      let last = window.scrollY; let ticking=false;
-      function frame(){
-        const y = window.scrollY; const dy = y-last;
-        if(Math.abs(dy)>2){ h.classList.toggle('is-hidden', dy>0); last=y; }
-        ticking=false;
-      }
-      addEventListener('scroll', ()=>{ if(!ticking){ ticking=true; requestAnimationFrame(frame); } }, {passive:true});
-    })();
-  </script>
+function renderCategoriesBar(categories){
+  const bar = $('#categoriesBar');
+  bar.innerHTML = '';
+  const cats = ["All", ...categories];
+  cats.forEach(cat=>{
+    const btn = document.createElement('button');
+    btn.textContent = cat;
+    btn.className = 'cat-btn' + (cat===currentCategory ? ' active' : '');
+    btn.onclick = ()=>{
+      currentCategory = cat;
+      renderFilteredItems();
+      $$('.cat-btn').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+    };
+    bar.appendChild(btn);
+  });
+}
+
+function renderFilteredItems(){
+  let filtered = allData.items;
+  if(currentCategory !== "All"){
+    filtered = filtered.filter(i=>i.category===currentCategory);
+  }
+  if(currentSort==="qty"){
+    filtered = filtered.sort((a,b)=>b.units-a.units);
+    renderListCollapsible($('#listItems'), filtered, 'units', v=>`${num(v)} pcs`);
+  } else {
+    filtered = filtered.sort((a,b)=>b.total-a.total);
+    renderListCollapsible($('#listItems'), filtered, 'total', money);
+  }
+}
+
+async function render(){
+  $('#totalSales').textContent = 'Loading…';
+  const raw = await loadOrWarm();
+  allData = normalize(raw);
+
+  $('#totalSales').textContent    = `Total Sales: ${money(allData.totalSales)}`;
+  $('#suppliersCount').textContent= `${allData.suppliers.length} suppliers`;
+  $('#itemsCount').textContent    = `${allData.items.length} items ranked`;
+  $('#clientsCount').textContent  = `${allData.clients.length} clients`;
+  $('#catsCount').textContent     = `${allData.cats.length} category rows`;
+
+  renderListCollapsible($('#listSuppliers'), allData.suppliers, 'total', money);
+  renderListCollapsible($('#listClients'),   allData.clients,   'total', money);
+  renderListCollapsible($('#listCats'),      allData.cats,      'units', v=>`${num(v)} pcs`);
+
+  renderCategoriesBar(allData.categories);
+  renderFilteredItems();
+}
+
+$('#btnRefresh').addEventListener('click', render);
+$$('.btn-sort').forEach(btn=>{
+  btn.onclick = ()=>{
+    currentSort = btn.dataset.sort;
+    $$('.btn-sort').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    renderFilteredItems();
+  };
+});
+
+render();
+</script>
+
+<style>
+/* Extra styling for category buttons */
+.categories-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 16px;
+}
+.cat-btn {
+  background: #222;
+  border: 1px solid #444;
+  padding: 4px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 0.85em;
+  color: #ccc;
+}
+.cat-btn.active {
+  background: #08f;
+  color: #fff;
+}
+.sort-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn-sort.active {
+  background: #08f;
+  color: #fff;
+}
+</style>
 </body>
 </html>
